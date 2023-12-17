@@ -14,6 +14,7 @@ Things That Frustrate Me About Other Engines and Frameworks:
 * Lack of example applications or example shaders.
 * Forcing developers to reinvent the wheel, such as lighting, time-tested mechanics, and persistence.
 * Poor readability of source code.
+* Lack of support for a scripting language, forcing recompiles for every edit.
 * Advanced features require a lot of background knowledge, suck as efficient collisions, lighting, and post-processing effects.
 * Trying to be everything to everyone, or over-engineering at the expensive of simpler games.
 
@@ -38,6 +39,7 @@ Critical Features:
 * Support for both 2D and 3D.
 * Primitive shapes for rapid prototyping.
 * Ease of lighting.
+* Lua scripting.
 
 Things I Want Nothing to Do With:
 
@@ -46,3 +48,4 @@ Things I Want Nothing to Do With:
 * Engine bloat.
 * Unreliable, confusing, or bloated third-party libraries.
 * Infinite engine development without building actual games.
+* File hierarchies deeper than Hell.
