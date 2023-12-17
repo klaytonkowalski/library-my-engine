@@ -1,0 +1,48 @@
+Things That Frustrate Me About Other Engines and Frameworks:
+
+* Modern GLSL features are not supported.
+* Multiplayer is so freaking difficult and shrouded in mystery.
+* Symbol conflicts with external libraries.
+* Confusing or overly-abbreviated APIs.
+* Focus mainly on 2D or 3D, but not both.
+* Primitive shapes and other basic assets are not included by default.
+* Lighting is not prioritized as a core feature.
+* Functionally separating the game world from the GUI.
+* Supporting every platform under the sun for the sake of being "cross-platform."
+* Broken build systems that cause existential crises, especially to beginners.
+* Lack of function documentation or erroneous documentation.
+* Lack of example applications or example shaders.
+* Forcing developers to reinvent the wheel, such as lighting, time-tested mechanics, and persistence.
+* Poor readability of source code.
+* Advanced features require a lot of background knowledge, suck as efficient collisions, lighting, and post-processing effects.
+* Trying to be everything to everyone, or over-engineering at the expensive of simpler games.
+
+Kinds of Game That One Could Imagine Developing:
+
+* Pokémon Emerald
+* Super Mario World
+* VVVVVV
+* Stardew Valley
+* Minecraft
+* Doom 1993
+
+(Verdict: Classics that do not require state-of-the-art technologies or extensive background knowledge.)
+
+Critical Features:
+
+* Simple, consistent, and verbose API.
+* Modules that implement configurable time-tested mechanics.
+* Comprehensive documentation and examples for functions, common features, shaders, etc.
+* Invisible build system.
+* Ease of multiplayer.
+* Support for both 2D and 3D.
+* Primitive shapes for rapid prototyping.
+* Ease of lighting.
+
+Things I Want Nothing to Do With:
+
+* Support for every platform on Earth.
+* State-of-the-art anything.
+* Engine bloat.
+* Unreliable, confusing, or bloated third-party libraries.
+* Infinite engine development without building actual games.
