@@ -1,3 +1,19 @@
+# Copyright (c) 2023 Klayton Kowalski
+# 
+# This software is provided 'as-is', without any express or implied warranty.
+# In no event will the authors be held liable for any damages arising from the use of this software.
+# 
+# Permission is granted to anyone to use this software for any purpose,
+# including commercial applications, and to alter it and redistribute it freely,
+# subject to the following restrictions:
+# 
+# 1. The origin of this software must not be misrepresented; you must not claim that you wrote the original software.
+#    If you use this software in a product, an acknowledgment in the product documentation would be appreciated but is not required.
+# 
+# 2. Altered source versions must be plainly marked as such, and must not be misrepresented as being the original software.
+# 
+# 3. This notice may not be removed or altered from any source distribution.
+
 ################################################################################
 # Welcome to the My Engine build system!
 # Let's start by initializing the project.
@@ -40,8 +56,8 @@ set(MYENGINE_PATH_HEADERS ${CMAKE_CURRENT_LIST_DIR}/include)
 set(MYENGINE_PATH_SOURCES ${CMAKE_CURRENT_LIST_DIR}/src)
 
 set(MYENGINE_FILES_HEADERS
-    ${MYENGINE_PATH_HEADERS}/export.h
-    ${MYENGINE_PATH_HEADERS}/myengine.h)
+    ${MYENGINE_PATH_HEADERS}/myengine/export.h
+    ${MYENGINE_PATH_HEADERS}/myengine/myengine.h)
 set(MYENGINE_FILES_SOURCES
     ${MYENGINE_PATH_SOURCES}/myengine.c)
 
@@ -59,18 +75,18 @@ project(stb_image LANGUAGES C)
 # Next, let's define some convenience variables.
 # The libraries that do use CMake require us to define some configuration variables, so let's do that too.
 
-set(GLAD_PATH_HEADERS ${MYENGINE_PATH_EXTERNAL}/glad/include/glad)
+set(GLAD_PATH_HEADERS ${MYENGINE_PATH_EXTERNAL}/glad/include)
 set(GLAD_PATH_SOURCES ${MYENGINE_PATH_EXTERNAL}/glad/src)
 set(GLFW_PATH ${MYENGINE_PATH_EXTERNAL}/glfw)
-set(STB_IMAGE_PATH_HEADERS ${MYENGINE_PATH_EXTERNAL}/stb_image/include/stb_image)
+set(STB_IMAGE_PATH_HEADERS ${MYENGINE_PATH_EXTERNAL}/stb_image/include)
 
 set(GLAD_FILES_HEADERS
-    ${GLAD_PATH_HEADERS}/gl.h
-    ${GLAD_PATH_HEADERS}/khrplatform.h)
+    ${GLAD_PATH_HEADERS}/glad/gl.h
+    ${GLAD_PATH_HEADERS}/glad/khrplatform.h)
 set(GLAD_FILES_SOURCES
     ${GLAD_PATH_SOURCES}/gl.c)
 set(STB_IMAGE_FILES_HEADERS
-    ${STB_IMAGE_PATH_HEADERS}/stb_image.h)
+    ${STB_IMAGE_PATH_HEADERS}/std_image/stb_image.h)
 
 set(GLFW_BUILD_EXAMPLES OFF)
 set(GLFW_BUILD_TESTS OFF)
@@ -95,7 +111,7 @@ target_include_directories(stb_image
 add_subdirectory(${GLFW_PATH})
 
 ################################################################################
-# Now that all of the libraries are ready to go, let's configure and build My Engine.
+# Now that all of the libraries are ready to go, let's build My Engine.
 
 add_library(myengine STATIC ${MYENGINE_FILES_SOURCES})
 
@@ -115,8 +131,10 @@ target_compile_definitions(myengine
     $<BUILD_INTERFACE:MYENGINE_PATH_ASSETS=\"${MYENGINE_PATH_ASSETS}\">)
 
 ################################################################################
-# Example projects are very important for demonstrating how to use My Engine, so let's build them.
+# Example projects are very important for demonstrating how to use My Engine.
+# The user may not be interested in them though, so let's only build them if option is set.
 
-add_executable(example ${MYENGINE_PATH_EXAMPLES}/example/example.c)
-
-target_link_libraries(example PRIVATE myengine)
+if(MYENGINE_OPTION_EXAMPLES)
+    add_executable(example ${MYENGINE_PATH_EXAMPLES}/example/example.c)
+    target_link_libraries(example PRIVATE myengine)
+endif()
