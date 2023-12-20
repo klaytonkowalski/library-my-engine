@@ -1,3 +1,7 @@
+////////////////////////////////////////////////////////////////////////////////
+// License
+////////////////////////////////////////////////////////////////////////////////
+
 // Copyright (c) 2023 Klayton Kowalski
 // 
 // This software is provided 'as-is', without any express or implied warranty.
@@ -14,17 +18,12 @@
 // 
 // 3. This notice may not be removed or altered from any source distribution.
 
+////////////////////////////////////////////////////////////////////////////////
+
 #ifndef MYENGINE_GUARD_EXPORT
 #define MYENGINE_GUARD_EXPORT
 
-////////////////////////////////////////////////////////////////////////////////
-// The entire purpose of this file is to define the MYENGINE_EXPORT macro.
-// My Engine's symbols are hidden by default, so this macro needs to be prepended to symbols that should be visible.
-
 #ifdef MYENGINE_SHARED
-
-    ////////////////////////////////////////////////////////////////////////////
-    // 
 
     #ifdef MYENGINE_EXPORT
         #ifdef _WIN32
@@ -40,9 +39,6 @@
             #define MYENGINE_API __attribute__((visibility("default")))
         #endif
     #endif
-
-////////////////////////////////////////////////////////////////////////////////
-// If My Engine is being built as a static library, then obviously all symbols are visible and we can define the macro as nothing.
 
 #else
     #define MYENGINE_API

@@ -1,3 +1,7 @@
+################################################################################
+# License
+################################################################################
+
 # Copyright (c) 2023 Klayton Kowalski
 # 
 # This software is provided 'as-is', without any express or implied warranty.
@@ -15,8 +19,5 @@
 # 3. This notice may not be removed or altered from any source distribution.
 
 ################################################################################
-# Some projects make it hard to properly configure their build system.
-# Fortunately, My Engine makes everything easy!
-# Override the following variables to your liking before building My Engine.
 
 set(MYENGINE_OPTION_EXAMPLES ON CACHE BOOL "Build example projects.")

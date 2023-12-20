@@ -1,3 +1,7 @@
+////////////////////////////////////////////////////////////////////////////////
+// License
+////////////////////////////////////////////////////////////////////////////////
+
 // Copyright (c) 2023 Klayton Kowalski
 // 
 // This software is provided 'as-is', without any express or implied warranty.
@@ -14,6 +18,10 @@
 // 
 // 3. This notice may not be removed or altered from any source distribution.
 
+////////////////////////////////////////////////////////////////////////////////
+// Dependencies
+////////////////////////////////////////////////////////////////////////////////
+
 #include <myengine/myengine.h>
 
 #define GLFW_INCLUDE_NONE
@@ -25,6 +33,12 @@
 
 #include <stdbool.h>
 #include <stdlib.h>
+#include <string.h>
+#include <math.h>
+
+////////////////////////////////////////////////////////////////////////////////
+// Types
+////////////////////////////////////////////////////////////////////////////////
 
 typedef struct MyEngine
 {
@@ -46,8 +60,16 @@ typedef struct MyEngine
 }
 MyEngine;
 
+////////////////////////////////////////////////////////////////////////////////
+// Prototypes
+////////////////////////////////////////////////////////////////////////////////
+
 static void my_window_position_callback(GLFWwindow* window, int x, int y);
 static void my_window_size_callback(GLFWwindow* window, int width, int height);
+
+////////////////////////////////////////////////////////////////////////////////
+// Variables
+////////////////////////////////////////////////////////////////////////////////
 
 static MyEngine myEngine = { 0 };
 
@@ -159,6 +181,10 @@ static const int myKeys[] =
     GLFW_KEY_RIGHT_SUPER,
     GLFW_KEY_MENU
 };
+
+////////////////////////////////////////////////////////////////////////////////
+// Window Functions
+////////////////////////////////////////////////////////////////////////////////
 
 bool my_window_create(int x, int y, int width, int height, const char* title)
 {
@@ -346,41 +372,376 @@ static void my_window_size_callback(GLFWwindow* window, int width, int height)
     glViewport(myEngine.windowWidth * myEngine.viewportX, myEngine.windowHeight * myEngine.viewportY, myEngine.viewportWidth * width, myEngine.viewportHeight * height);
 }
 
+////////////////////////////////////////////////////////////////////////////////
+// Float Functions
+////////////////////////////////////////////////////////////////////////////////
+
+float my_float_randomize(float floor, float ceiling)
+{
+    const float range = ceiling - floor;
+    return (float) rand() / RAND_MAX * range + floor;
+}
+
+float my_float_clamp(float value, float floor, float ceiling)
+{
+    if (value < floor)
+    {
+        return floor;
+    }
+    if (value > ceiling)
+    {
+        return ceiling;
+    }
+    return value;
+}
+
+float my_float_wrap(float value, float floor, float ceiling)
+{
+    const float range = ceiling - floor;
+    while (value < floor)
+    {
+        value += range;
+    }
+    while (value > ceiling)
+    {
+        value -= range;
+    }
+    return value;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+// Color Functions
+////////////////////////////////////////////////////////////////////////////////
+
 MyColor my_color_uniform(float value, bool alpha)
 {
-    return (MyColor) { value, value, value, alpha ? value : 1.0f };
+    return (MyColor)
+    {
+        value,
+        value,
+        value,
+        alpha ? value : 1.0f
+    };
 }
 
 MyColor my_color_randomize(bool alpha)
 {
-    return (MyColor) { (float) rand() / RAND_MAX, (float) rand() / RAND_MAX, (float) rand() / RAND_MAX, alpha ? (float) rand() / RAND_MAX : 1.0f };
+    return (MyColor)
+    {
+        (float) rand() / RAND_MAX,
+        (float) rand() / RAND_MAX,
+        (float) rand() / RAND_MAX,
+        alpha ? (float) rand() / RAND_MAX : 1.0f
+    };
 }
 
 MyColor my_color_clamp(MyColor color)
 {
-    if (color.red < 0.0f)
+    return (MyColor)
     {
-        color.red = 0.0f;
-    }
-    else if (color.red > 1.0f)
+        my_float_clamp(color.red, 0.0f, 1.0f),
+        my_float_clamp(color.green, 0.0f, 1.0f),
+        my_float_clamp(color.blue, 0.0f, 1.0f),
+        my_float_clamp(color.alpha, 0.0f, 1.0f)
+    };
+}
+
+////////////////////////////////////////////////////////////////////////////////
+// Vector Functions
+////////////////////////////////////////////////////////////////////////////////
+
+MyVector my_vector_uniform(float value)
+{
+    return (MyVector)
     {
-        color.red = 1.0f;
-    }
-    if (color.green < 0.0f)
+        value,
+        value,
+        value
+    };
+}
+
+MyVector my_vector_randomize(MyVector floor, MyVector ceiling)
+{
+    return (MyVector)
     {
-        color.green = 0.0f;
-    }
-    else if (color.green > 1.0f)
+        my_float_randomize(floor.x, ceiling.x),
+        my_float_randomize(floor.y, ceiling.y),
+        my_float_randomize(floor.z, ceiling.z)
+    };
+}
+
+MyVector my_vector_add(MyVector lhs, MyVector rhs)
+{
+    return (MyVector)
     {
-        color.green = 1.0f;
-    }
-    if (color.blue < 0.0f)
+        lhs.x + rhs.x,
+        lhs.y + rhs.y,
+        lhs.z + rhs.z
+    };
+}
+
+MyVector my_vector_subtract(MyVector lhs, MyVector rhs)
+{
+    return (MyVector)
     {
-        color.blue = 0.0f;
-    }
-    else if (color.blue > 1.0f)
+        lhs.x - rhs.x,
+        lhs.y - rhs.y,
+        lhs.z - rhs.z
+    };
+}
+
+MyVector my_vector_scale_uniform(MyVector vector, float factor)
+{
+    return (MyVector)
     {
-        color.blue = 1.0f;
+        vector.x * factor,
+        vector.y * factor,
+        vector.z * factor
+    };
+}
+
+MyVector my_vector_scale_nonuniform(MyVector lhs, MyVector rhs)
+{
+    return (MyVector)
+    {
+        lhs.x * rhs.x,
+        lhs.y * rhs.y,
+        lhs.z * rhs.z
+    };
+}
+
+MyVector my_vector_negate(MyVector vector)
+{
+    return (MyVector)
+    {
+        -vector.x,
+        -vector.y,
+        -vector.z,
+    };
+}
+
+float my_vector_length(MyVector vector)
+{
+    return sqrtf(vector.x * vector.x + vector.y * vector.y + vector.z * vector.z);
+}
+
+MyVector my_vector_normalize(MyVector vector)
+{
+    const float length = my_vector_length(vector);
+    if (length == 0.0f)
+    {
+        return MY_VECTOR_ZERO;
     }
-    return color;
+    return my_vector_scale_uniform(vector, 1.0f / length);
+}
+
+float my_vector_dot(MyVector lhs, MyVector rhs)
+{
+    return lhs.x * rhs.x + lhs.y * rhs.y + lhs.z * rhs.z;
+}
+
+MyVector my_vector_cross(MyVector lhs, MyVector rhs)
+{
+    return (MyVector)
+    {
+        lhs.y * rhs.z - lhs.z * rhs.y,
+        lhs.z * rhs.x - lhs.x * rhs.z,
+        lhs.x * rhs.y - lhs.y * rhs.x
+    };
+}
+
+MyVector my_vector_rotate(MyVector vector, MyVector rotation)
+{
+    if (rotation.x)
+    {
+        const float radians = rotation.x * MY_FLOAT_RADIANS;
+        const float cosRadians = cosf(radians);
+        const float sinRadians = sinf(radians);
+        vector = (MyVector)
+        {
+            vector.x,
+            vector.y * cosRadians + vector.z * -sinRadians,
+            vector.y * sinRadians + vector.z * cosRadians
+        };
+    }
+    if (rotation.y)
+    {
+        const float radians = rotation.y * MY_FLOAT_RADIANS;
+        const float cosRadians = cosf(radians);
+        const float sinRadians = sinf(radians);
+        vector = (MyVector)
+        {
+            vector.x * cosRadians + vector.z * sinRadians,
+            vector.y,
+            vector.x * -sinRadians + vector.z * cosRadians
+        };
+    }
+    if (rotation.z)
+    {
+        const float radians = rotation.z * MY_FLOAT_RADIANS;
+        const float cosRadians = cosf(radians);
+        const float sinRadians = sinf(radians);
+        vector = (MyVector)
+        {
+            vector.x * cosRadians + vector.y * -sinRadians,
+            vector.x * sinRadians + vector.y * cosRadians,
+            vector.z
+        };
+    }
+    return vector;
+}
+
+MyVector my_vector_clamp(MyVector vector, MyVector floor, MyVector ceiling)
+{
+    return (MyVector)
+    {
+        my_float_clamp(vector.x, floor.x, ceiling.x),
+        my_float_clamp(vector.y, floor.y, ceiling.y),
+        my_float_clamp(vector.z, floor.z, ceiling.z)
+    };
+}
+
+MyVector my_vector_wrap(MyVector vector, MyVector floor, MyVector ceiling)
+{
+    return (MyVector)
+    {
+        my_float_wrap(vector.x, floor.x, ceiling.x),
+        my_float_wrap(vector.y, floor.y, ceiling.y),
+        my_float_wrap(vector.z, floor.z, ceiling.z)
+    };
+}
+
+void my_vector_basis(MyVector* basisX, MyVector* basisY, MyVector* basisZ, MyVector rotation)
+{
+    *basisZ = my_vector_normalize(my_vector_rotate(MY_VECTOR_BASIS_Z, rotation));
+    *basisX = my_vector_normalize(my_vector_cross(*basisZ, MY_VECTOR_BASIS_Y));
+    *basisY = my_vector_normalize(my_vector_cross(*basisX, *basisZ));
+}
+
+////////////////////////////////////////////////////////////////////////////////
+// Transform Functions
+////////////////////////////////////////////////////////////////////////////////
+
+MyTransform my_transform_multiply(MyTransform lhs, MyTransform rhs)
+{
+    return (MyTransform)
+    {
+        lhs.m1 * rhs.m1 + lhs.m2 * rhs.m5 + lhs.m3 * rhs.m9  + lhs.m4 * rhs.m13,
+        lhs.m5 * rhs.m1 + lhs.m6 * rhs.m5 + lhs.m7 * rhs.m9  + lhs.m8 * rhs.m13,
+        lhs.m9 * rhs.m1 + lhs.m10 * rhs.m5 + lhs.m11 * rhs.m9  + lhs.m12 * rhs.m13,
+        lhs.m13 * rhs.m1 + lhs.m14 * rhs.m5 + lhs.m15 * rhs.m9  + lhs.m16 * rhs.m13,
+        lhs.m1 * rhs.m2 + lhs.m2 * rhs.m6 + lhs.m3 * rhs.m10 + lhs.m4 * rhs.m14,
+        lhs.m5 * rhs.m2 + lhs.m6 * rhs.m6 + lhs.m7 * rhs.m10 + lhs.m8 * rhs.m14,
+        lhs.m9 * rhs.m2 + lhs.m10 * rhs.m6 + lhs.m11 * rhs.m10 + lhs.m12 * rhs.m14,
+        lhs.m13 * rhs.m2 + lhs.m14 * rhs.m6 + lhs.m15 * rhs.m10 + lhs.m16 * rhs.m14,
+        lhs.m1 * rhs.m3 + lhs.m2 * rhs.m7 + lhs.m3 * rhs.m11 + lhs.m4 * rhs.m15,
+        lhs.m5 * rhs.m3 + lhs.m6 * rhs.m7 + lhs.m7 * rhs.m11 + lhs.m8 * rhs.m15,
+        lhs.m9 * rhs.m3 + lhs.m10 * rhs.m7 + lhs.m11 * rhs.m11 + lhs.m12 * rhs.m15,
+        lhs.m13 * rhs.m3 + lhs.m14 * rhs.m7 + lhs.m15 * rhs.m11 + lhs.m16 * rhs.m15,
+        lhs.m1 * rhs.m4 + lhs.m2 * rhs.m8 + lhs.m3 * rhs.m12 + lhs.m4 * rhs.m16,
+        lhs.m5 * rhs.m4 + lhs.m6 * rhs.m8 + lhs.m7 * rhs.m12 + lhs.m8 * rhs.m16,
+        lhs.m9 * rhs.m4 + lhs.m10 * rhs.m8 + lhs.m11 * rhs.m12 + lhs.m12 * rhs.m16,
+        lhs.m13 * rhs.m4 + lhs.m14 * rhs.m8 + lhs.m15 * rhs.m12 + lhs.m16 * rhs.m16
+    };
+}
+
+MyTransform my_transform_translate(MyTransform transform, MyVector translation)
+{
+    transform.m1 += translation.x;
+    transform.m6 += translation.y;
+    transform.m11 += translation.z;
+    return transform;
+}
+
+MyTransform my_transform_scale_uniform(MyTransform transform, float factor)
+{
+    transform.m1 *= factor;
+    transform.m6 *= factor;
+    transform.m11 *= factor;
+    return transform;
+}
+
+MyTransform my_transform_scale_nonuniform(MyTransform transform, MyVector factor)
+{
+    transform.m1 *= factor.x;
+    transform.m6 *= factor.y;
+    transform.m11 *= factor.z;
+    return transform;
+}
+
+MyTransform my_transform_rotate(MyTransform transform, MyVector rotation)
+{
+    if (rotation.x)
+    {
+        const float angleRadians = rotation.x * MY_FLOAT_RADIANS;
+        const float cosRadians = cosf(angleRadians);
+        const float sinRadians = sinf(angleRadians);
+        const MyTransform pitchTransform =
+        {
+            1.0f, 0.0f, 0.0f, 0.0f,
+            0.0f, cosRadians, -sinRadians, 0.0f,
+            0.0f, sinRadians, cosRadians, 0.0f,
+            0.0f, 0.0f, 0.0f, 1.0f
+        };
+        transform = my_transform_multiply(transform, pitchTransform);
+    }
+    if (rotation.y)
+    {
+        const float angleRadians = rotation.y * MY_FLOAT_RADIANS;
+        const float cosRadians = cosf(angleRadians);
+        const float sinRadians = sinf(angleRadians);
+        const MyTransform pitchTransform =
+        {
+            cosRadians, 0.0f, -sinRadians, 0.0f,
+            0.0f, 0.0f, 1.0f, 0.0f,
+            sinRadians, 0.0f, 0.0f, cosRadians,
+            0.0f, 0.0f, 0.0f, 1.0f
+        };
+        transform = my_transform_multiply(transform, pitchTransform);
+    }
+    if (rotation.z)
+    {
+        const float angleRadians = rotation.z * MY_FLOAT_RADIANS;
+        const float cosRadians = cosf(angleRadians);
+        const float sinRadians = sinf(angleRadians);
+        const MyTransform pitchTransform =
+        {
+            cosRadians, -sinRadians, 0.0f, 0.0f,
+            sinRadians, cosRadians, 0.0f, 0.0f,
+            0.0f, 0.0f, 1.0f, 0.0f,
+            0.0f, 0.0f, 0.0f, 1.0f
+        };
+        transform = my_transform_multiply(transform, pitchTransform);
+    }
+    return transform;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+// File Functions
+////////////////////////////////////////////////////////////////////////////////
+
+char* my_file_read(const char* path)
+{
+    FILE* file = fopen(path, "rb");
+    if (!file)
+    {
+        return NULL;
+    }
+    fseek(file, 0, SEEK_END);
+    const long length = ftell(file);
+    fseek(file, 0, SEEK_SET);
+    char* result = malloc((length + 1) * sizeof(char));
+    if (!result)
+    {
+        return NULL;
+    }
+    fread(result, length, 1, file);
+    fclose(file);
+    result[length] = '\0';
+    return result;
+}
+
+char* my_file_extension(const char* path)
+{
+    return strrchr(path, '.');
 }

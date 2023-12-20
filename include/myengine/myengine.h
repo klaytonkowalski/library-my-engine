@@ -1,3 +1,7 @@
+////////////////////////////////////////////////////////////////////////////////
+// License
+////////////////////////////////////////////////////////////////////////////////
+
 // Copyright (c) 2023 Klayton Kowalski
 // 
 // This software is provided 'as-is', without any express or implied warranty.
@@ -14,12 +18,22 @@
 // 
 // 3. This notice may not be removed or altered from any source distribution.
 
+////////////////////////////////////////////////////////////////////////////////
+
 #ifndef MYENGINE_GUARD
 #define MYENGINE_GUARD
+
+////////////////////////////////////////////////////////////////////////////////
+// Dependencies
+////////////////////////////////////////////////////////////////////////////////
 
 #include <myengine/export.h>
 
 #include <stdbool.h>
+
+////////////////////////////////////////////////////////////////////////////////
+// Macros
+////////////////////////////////////////////////////////////////////////////////
 
 #define MY_COLOR_WHITE (MyColor) { 1.0f, 1.0f, 1.0f, 1.0f }
 #define MY_COLOR_BLACK (MyColor) { 0.0f, 0.0f, 0.0f, 1.0f }
@@ -29,6 +43,21 @@
 #define MY_COLOR_YELLOW (MyColor) { 1.0f, 1.0f, 0.0f, 1.0f }
 #define MY_COLOR_MAGENTA (MyColor) { 1.0f, 0.0f, 1.0f, 1.0f }
 #define MY_COLOR_CYAN (MyColor) { 0.0f, 1.0f, 1.0f, 1.0f }
+
+#define MY_FLOAT_RADIANS 0.01745329251f
+#define MY_FLOAT_DEGREES 57.2957795131f
+#define MY_FLOAT_PI 3.14159265359f
+
+#define MY_VECTOR_ZERO (MyVector) { 0.0f, 0.0f, 0.0f }
+#define MY_VECTOR_BASIS_X (MyVector) { 1.0f, 0.0f, 0.0f }
+#define MY_VECTOR_BASIS_Y (MyVector) { 0.0f, 1.0f, 0.0f }
+#define MY_VECTOR_BASIS_Z (MyVector) { 0.0f, 0.0f, -1.0f }
+
+#define MY_TRANSFORM_IDENTITY (MyTransform) { 1.0f, 0.0f, 0.0f, 0.0f, 0.0f, 1.0f, 0.0f, 0.0f, 0.0f, 0.0f, 1.0f, 0.0f, 0.0f, 0.0f, 0.0f, 1.0f }
+
+////////////////////////////////////////////////////////////////////////////////
+// Types
+////////////////////////////////////////////////////////////////////////////////
 
 typedef enum MyKey
 {
@@ -159,27 +188,97 @@ typedef struct MyColor
 }
 MyColor;
 
-MYENGINE_API bool my_window_create (int x, int y, int width, int height, const char* title);
-MYENGINE_API void my_window_destroy (void);
-MYENGINE_API bool my_window_prepare (void);
-MYENGINE_API void my_window_render (void);
-MYENGINE_API void my_window_position (int x, int y);
-MYENGINE_API void my_window_size (int width, int height);
-MYENGINE_API void my_window_title (const char* title);
-MYENGINE_API void my_window_color (MyColor color);
-MYENGINE_API void my_window_viewport (float x, float y, float width, float height);
-MYENGINE_API void my_window_vsync (bool vsync);
-MYENGINE_API void my_window_depth (bool depth);
-MYENGINE_API void my_window_cursor (bool cursor);
+typedef struct MyVector
+{
+    float x;
+    float y;
+    float z;
+}
+MyVector;
 
-MYENGINE_API float my_window_get_cursor_x (void);
-MYENGINE_API float my_window_get_cursor_y (void);
-MYENGINE_API float my_window_get_cursor_delta_x (void);
-MYENGINE_API float my_window_get_cursor_delta_y (void);
-MYENGINE_API MyKeyState my_window_get_key_state (MyKey key);
+typedef struct MyTransform
+{
+    float m1, m5, m9, m13;
+    float m2, m6, m10, m14;
+    float m3, m7, m11, m15;
+    float m4, m8, m12, m16;
+}
+MyTransform;
 
-MYENGINE_API MyColor my_color_uniform (float value, bool alpha);
-MYENGINE_API MyColor my_color_randomize (bool alpha);
-MYENGINE_API MyColor my_color_clamp (MyColor color);
+////////////////////////////////////////////////////////////////////////////////
+// Window Functions
+////////////////////////////////////////////////////////////////////////////////
+
+MYENGINE_API bool my_window_create(int x, int y, int width, int height, const char* title);
+MYENGINE_API void my_window_destroy(void);
+MYENGINE_API bool my_window_prepare(void);
+MYENGINE_API void my_window_render(void);
+MYENGINE_API void my_window_position(int x, int y);
+MYENGINE_API void my_window_size(int width, int height);
+MYENGINE_API void my_window_title(const char* title);
+MYENGINE_API void my_window_color(MyColor color);
+MYENGINE_API void my_window_viewport(float x, float y, float width, float height);
+MYENGINE_API void my_window_vsync(bool vsync);
+MYENGINE_API void my_window_depth(bool depth);
+MYENGINE_API void my_window_cursor(bool cursor);
+
+MYENGINE_API float my_window_get_cursor_x(void);
+MYENGINE_API float my_window_get_cursor_y(void);
+MYENGINE_API float my_window_get_cursor_delta_x(void);
+MYENGINE_API float my_window_get_cursor_delta_y(void);
+MYENGINE_API MyKeyState my_window_get_key_state(MyKey key);
+
+////////////////////////////////////////////////////////////////////////////////
+// Float Functions
+////////////////////////////////////////////////////////////////////////////////
+
+MYENGINE_API float my_float_randomize(float floor, float ceiling);
+MYENGINE_API float my_float_clamp(float value, float floor, float ceiling);
+MYENGINE_API float my_float_wrap(float value, float floor, float ceiling);
+
+////////////////////////////////////////////////////////////////////////////////
+// Color Functions
+////////////////////////////////////////////////////////////////////////////////
+
+MYENGINE_API MyColor my_color_uniform(float value, bool alpha);
+MYENGINE_API MyColor my_color_randomize(bool alpha);
+MYENGINE_API MyColor my_color_clamp(MyColor color);
+
+////////////////////////////////////////////////////////////////////////////////
+// Vector Functions
+////////////////////////////////////////////////////////////////////////////////
+
+MYENGINE_API MyVector my_vector_uniform(float value);
+MYENGINE_API MyVector my_vector_randomize(MyVector floor, MyVector ceiling);
+MYENGINE_API MyVector my_vector_add(MyVector lhs, MyVector rhs);
+MYENGINE_API MyVector my_vector_subtract(MyVector lhs, MyVector rhs);
+MYENGINE_API MyVector my_vector_scale_uniform(MyVector vector, float factor);
+MYENGINE_API MyVector my_vector_scale_nonuniform(MyVector lhs, MyVector rhs);
+MYENGINE_API MyVector my_vector_negate(MyVector vector);
+MYENGINE_API float my_vector_length(MyVector vector);
+MYENGINE_API MyVector my_vector_normalize(MyVector vector);
+MYENGINE_API float my_vector_dot(MyVector lhs, MyVector rhs);
+MYENGINE_API MyVector my_vector_cross(MyVector lhs, MyVector rhs);
+MYENGINE_API MyVector my_vector_rotate(MyVector vector, MyVector rotation);
+MYENGINE_API MyVector my_vector_clamp(MyVector vector, MyVector floor, MyVector ceiling);
+MYENGINE_API MyVector my_vector_wrap(MyVector vector, MyVector floor, MyVector ceiling);
+MYENGINE_API void my_vector_basis(MyVector* basisX, MyVector* basisY, MyVector* basisZ, MyVector rotation);
+
+////////////////////////////////////////////////////////////////////////////////
+// Transform Functions
+////////////////////////////////////////////////////////////////////////////////
+
+MYENGINE_API MyTransform my_transform_multiply(MyTransform lhs, MyTransform rhs);
+MYENGINE_API MyTransform my_transform_translate(MyTransform transform, MyVector translation);
+MYENGINE_API MyTransform my_transform_scale_uniform(MyTransform transform, float factor);
+MYENGINE_API MyTransform my_transform_scale_nonuniform(MyTransform transform, MyVector factor);
+MYENGINE_API MyTransform my_transform_rotate(MyTransform transform, MyVector rotation);
+
+////////////////////////////////////////////////////////////////////////////////
+// File Functions
+////////////////////////////////////////////////////////////////////////////////
+
+MYENGINE_API char* my_file_read(const char* path);
+MYENGINE_API char* my_file_extension(const char* path);
 
 #endif
