@@ -22,4 +22,6 @@
 
 set(MY_OPTION_EXAMPLES ON CACHE BOOL "Build example projects.")
 
-set(MY_OPTION_CAPACITY_CLOCK "100" CACHE STRING "Clock capacity, where each clock is 40 bytes.")
+set(MY_OPTION_CAPACITY_TEXTURE "100" CACHE STRING "Texture capacity.")
+set(MY_OPTION_CAPACITY_SHADER "100" CACHE STRING "Shader capacity.")
+set(MY_OPTION_CAPACITY_CLOCK "100" CACHE STRING "Clock capacity.")

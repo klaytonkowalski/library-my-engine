@@ -48,6 +48,29 @@
 // Types
 ////////////////////////////////////////////////////////////////////////////////
 
+typedef struct MyTexture
+{
+    MyHandle textureHandle;
+    GLuint texture;
+    stbi_uc* imageData;
+    int width;
+    int height;
+    int channelCount;
+    bool transparent;
+}
+MyTexture;
+
+typedef struct MyShader
+{
+    MyHandle shaderHandle;
+    GLuint vertexStage;
+    GLuint fragmentStage;
+    GLuint program;
+    char* vertexText;
+    char* fragmentText;
+}
+MyShader;
+
 typedef struct MyClock
 {
     MyHandle clockHandle;
@@ -63,6 +86,8 @@ MyClock;
 typedef struct MyEngine
 {
     GLFWwindow* window;
+    MyTexture textures[MY_OPTION_CAPACITY_TEXTURE];
+    MyShader shaders[MY_OPTION_CAPACITY_SHADER];
     MyClock clocks[MY_OPTION_CAPACITY_CLOCK];
     int windowX;
     int windowY;
@@ -242,6 +267,16 @@ bool my_window_create(int x, int y, int width, int height, const char* title)
     my_window_vsync(true);
     my_window_depth(true);
     myEngine.renderMask = GL_COLOR_BUFFER_BIT;
+    if (!my_texture_create(MY_PATH_ASSETS "/images/pixel.png"))
+    {
+        my_window_destroy();
+        return false;
+    }
+    // if (!my_shader_create(MY_PATH_ASSETS "/shaders/vertex/entity.glsl", MY_PATH_ASSETS "/shaders/fragment/entity.glsl"))
+    // {
+    //     my_window_destroy();
+    //     return false;
+    // }
     if (!my_clock_create())
     {
         my_window_destroy();
@@ -256,6 +291,27 @@ bool my_window_create(int x, int y, int width, int height, const char* title)
 
 void my_window_destroy(void)
 {
+    for (int i = 1; i < MY_OPTION_CAPACITY_TEXTURE; i++)
+    {
+        if (myEngine.textures[i].textureHandle)
+        {
+            my_texture_destroy(i);
+        }
+    }
+    for (int i = 1; i < MY_OPTION_CAPACITY_SHADER; i++)
+    {
+        if (myEngine.shaders[i].shaderHandle)
+        {
+            my_shader_destroy(i);
+        }
+    }
+    for (int i = 1; i < MY_OPTION_CAPACITY_CLOCK; i++)
+    {
+        if (myEngine.clocks[i].clockHandle)
+        {
+            my_clock_destroy(i);
+        }
+    }
     if (myEngine.window)
     {
         glfwDestroyWindow(myEngine.window);
@@ -303,6 +359,7 @@ bool my_window_prepare(void)
             }
         }
     }
+    myEngine.frameCount++;
     glfwSwapBuffers(myEngine.window);
     glClear(myEngine.renderMask);
     return true;
@@ -392,6 +449,11 @@ MyKeyState my_window_get_key_state(MyKey key)
     return myEngine.keyStates[key];
 }
 
+int my_window_get_frame_rate(void)
+{
+    return myEngine.frameRate;
+}
+
 static void my_window_position_callback(GLFWwindow* window, int x, int y)
 {
     myEngine.windowX = x;
@@ -403,6 +465,184 @@ static void my_window_size_callback(GLFWwindow* window, int width, int height)
     myEngine.windowWidth = width;
     myEngine.windowHeight = height;
     glViewport(myEngine.windowWidth * myEngine.viewportX, myEngine.windowHeight * myEngine.viewportY, myEngine.viewportWidth * width, myEngine.viewportHeight * height);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+// Texture Functions
+////////////////////////////////////////////////////////////////////////////////
+
+MyHandle my_texture_create(const char* imagePath)
+{
+    MyHandle textureHandle = MY_INVALID_HANDLE;
+    for (int i = 1; i < MY_OPTION_CAPACITY_TEXTURE; i++)
+    {
+        if (!myEngine.textures[i].textureHandle)
+        {
+            textureHandle = i;
+            break;
+        }
+    }
+    if (!textureHandle)
+    {
+        return MY_INVALID_HANDLE;
+    }
+    const char* extension = my_file_extension(imagePath);
+    if (strcmp(extension, ".png") == 0)
+    {
+        myEngine.textures[textureHandle].imageData = stbi_load(imagePath, &myEngine.textures[textureHandle].width, &myEngine.textures[textureHandle].height, &myEngine.textures[textureHandle].channelCount, 0);
+    }
+    if (!myEngine.textures[textureHandle].imageData)
+    {
+        my_texture_destroy(textureHandle);
+        return MY_INVALID_HANDLE;
+    }
+    if (myEngine.textures[textureHandle].channelCount == 4)
+    {
+        const int imageDataSize = myEngine.textures[textureHandle].width * myEngine.textures[textureHandle].height * 4;
+        for (int i = 3; i < imageDataSize; i += 4)
+        {
+            if (myEngine.textures[textureHandle].imageData[i] < 255)
+            {
+                myEngine.textures[textureHandle].transparent = true;
+                break;
+            }
+        }
+    }
+    glCreateTextures(GL_TEXTURE_2D, 1, &myEngine.textures[textureHandle].texture);
+    if (!myEngine.textures[textureHandle].texture)
+    {
+        my_texture_destroy(textureHandle);
+        return MY_INVALID_HANDLE;
+    }
+    glTextureParameteri(myEngine.textures[textureHandle].texture, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE );
+    glTextureParameteri(myEngine.textures[textureHandle].texture, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE );
+    glTextureParameteri(myEngine.textures[textureHandle].texture, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
+    glTextureParameteri(myEngine.textures[textureHandle].texture, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+    glTextureStorage2D(myEngine.textures[textureHandle].texture, 1, GL_RGBA8, myEngine.textures[textureHandle].width, myEngine.textures[textureHandle].height);
+    glTextureSubImage2D(myEngine.textures[textureHandle].texture, 0, 0, 0, myEngine.textures[textureHandle].width, myEngine.textures[textureHandle].height, GL_RGBA, GL_UNSIGNED_BYTE, myEngine.textures[textureHandle].imageData);
+    myEngine.textures[textureHandle].textureHandle = textureHandle;
+    return textureHandle;
+}
+
+void my_texture_destroy(MyHandle textureHandle)
+{
+    if (myEngine.textures[textureHandle].texture)
+    {
+        glDeleteTextures(1, &myEngine.textures[textureHandle].texture);
+    }
+    if (myEngine.textures[textureHandle].imageData)
+    {
+        stbi_image_free(myEngine.textures[textureHandle].imageData);
+    }
+    myEngine.textures[textureHandle] = (MyTexture) { 0 };
+}
+
+////////////////////////////////////////////////////////////////////////////////
+// Shader Functions
+////////////////////////////////////////////////////////////////////////////////
+
+MyHandle my_shader_create(const char* vertexPath, const char* fragmentPath)
+{
+    MyHandle shaderHandle = MY_INVALID_HANDLE;
+    for (int i = 1; i < MY_OPTION_CAPACITY_SHADER; i++)
+    {
+        if (!myEngine.shaders[i].shaderHandle)
+        {
+            shaderHandle = i;
+            break;
+        }
+    }
+    if (!shaderHandle)
+    {
+        return MY_INVALID_HANDLE;
+    }
+    myEngine.shaders[shaderHandle].vertexStage = glCreateShader(GL_VERTEX_SHADER);
+    if (!myEngine.shaders[shaderHandle].vertexStage)
+    {
+        my_shader_destroy(shaderHandle);
+        return MY_INVALID_HANDLE;
+    }
+    myEngine.shaders[shaderHandle].vertexText = my_file_read(vertexPath);
+    if (!myEngine.shaders[shaderHandle].vertexText)
+    {
+        my_shader_destroy(shaderHandle);
+        return MY_INVALID_HANDLE;
+    }
+    const char* vertexTextConst = myEngine.shaders[shaderHandle].vertexText;
+    glShaderSource(myEngine.shaders[shaderHandle].vertexStage, 1, &vertexTextConst, NULL);
+    glCompileShader(myEngine.shaders[shaderHandle].vertexStage);
+    GLint vertexStatus = 0;
+    glGetShaderiv(myEngine.shaders[shaderHandle].vertexStage, GL_COMPILE_STATUS, &vertexStatus);
+    if (!vertexStatus)
+    {
+        my_shader_destroy(shaderHandle);
+        return MY_INVALID_HANDLE;
+    }
+    myEngine.shaders[shaderHandle].fragmentStage = glCreateShader(GL_FRAGMENT_SHADER);
+    if (!myEngine.shaders[shaderHandle].fragmentStage)
+    {
+        my_shader_destroy(shaderHandle);
+        return MY_INVALID_HANDLE;
+    }
+    myEngine.shaders[shaderHandle].fragmentText = my_file_read(fragmentPath);
+    if (!myEngine.shaders[shaderHandle].fragmentText)
+    {
+        my_shader_destroy(shaderHandle);
+        return MY_INVALID_HANDLE;
+    }
+    const char* fragmentTextConst = myEngine.shaders[shaderHandle].fragmentText;
+    glShaderSource(myEngine.shaders[shaderHandle].fragmentStage, 1, &fragmentTextConst, NULL);
+    glCompileShader(myEngine.shaders[shaderHandle].fragmentStage);
+    GLint fragmentStatus = 0;
+    glGetShaderiv(myEngine.shaders[shaderHandle].fragmentStage, GL_COMPILE_STATUS, &fragmentStatus);
+    if (!fragmentStatus)
+    {
+        my_shader_destroy(shaderHandle);
+        return MY_INVALID_HANDLE;
+    }
+    myEngine.shaders[shaderHandle].program = glCreateProgram();
+    if (!myEngine.shaders[shaderHandle].program)
+    {
+        my_shader_destroy(shaderHandle);
+        return MY_INVALID_HANDLE;
+    }
+    glAttachShader(myEngine.shaders[shaderHandle].program, myEngine.shaders[shaderHandle].vertexStage);
+    glAttachShader(myEngine.shaders[shaderHandle].program, myEngine.shaders[shaderHandle].fragmentStage);
+    glLinkProgram(myEngine.shaders[shaderHandle].program);
+    GLint programStatus = 0;
+    glGetProgramiv(myEngine.shaders[shaderHandle].program, GL_LINK_STATUS, &programStatus);
+    if (!programStatus)
+    {
+        my_shader_destroy(shaderHandle);
+        return MY_INVALID_HANDLE;
+    }
+    myEngine.shaders[shaderHandle].shaderHandle = shaderHandle;
+    return shaderHandle;
+}
+
+void my_shader_destroy(MyHandle shaderHandle)
+{
+    if (myEngine.shaders[shaderHandle].vertexStage)
+    {
+        glDeleteShader(myEngine.shaders[shaderHandle].vertexStage);
+    }
+    if (myEngine.shaders[shaderHandle].fragmentStage)
+    {
+        glDeleteShader(myEngine.shaders[shaderHandle].fragmentStage);
+    }
+    if (myEngine.shaders[shaderHandle].program)
+    {
+        glDeleteProgram(myEngine.shaders[shaderHandle].program);
+    }
+    if (myEngine.shaders[shaderHandle].vertexText)
+    {
+        free(myEngine.shaders[shaderHandle].vertexText);
+    }
+    if (myEngine.shaders[shaderHandle].fragmentText)
+    {
+        free(myEngine.shaders[shaderHandle].fragmentText);
+    }
+    myEngine.shaders[shaderHandle] = (MyShader) { 0 };
 }
 
 ////////////////////////////////////////////////////////////////////////////////
