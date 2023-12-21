@@ -20,8 +20,8 @@
 
 ////////////////////////////////////////////////////////////////////////////////
 
-#ifndef MYENGINE_GUARD
-#define MYENGINE_GUARD
+#ifndef MY_GUARD
+#define MY_GUARD
 
 ////////////////////////////////////////////////////////////////////////////////
 // Dependencies
@@ -58,6 +58,10 @@
 ////////////////////////////////////////////////////////////////////////////////
 // Types
 ////////////////////////////////////////////////////////////////////////////////
+
+typedef int MyHandle;
+
+typedef void (*MyClockCallback)(MyHandle clockHandle);
 
 typedef enum MyKey
 {
@@ -209,76 +213,91 @@ MyTransform;
 // Window Functions
 ////////////////////////////////////////////////////////////////////////////////
 
-MYENGINE_API bool my_window_create(int x, int y, int width, int height, const char* title);
-MYENGINE_API void my_window_destroy(void);
-MYENGINE_API bool my_window_prepare(void);
-MYENGINE_API void my_window_render(void);
-MYENGINE_API void my_window_position(int x, int y);
-MYENGINE_API void my_window_size(int width, int height);
-MYENGINE_API void my_window_title(const char* title);
-MYENGINE_API void my_window_color(MyColor color);
-MYENGINE_API void my_window_viewport(float x, float y, float width, float height);
-MYENGINE_API void my_window_vsync(bool vsync);
-MYENGINE_API void my_window_depth(bool depth);
-MYENGINE_API void my_window_cursor(bool cursor);
+MY_API bool my_window_create(int x, int y, int width, int height, const char* title);
+MY_API void my_window_destroy(void);
+MY_API bool my_window_prepare(void);
+MY_API void my_window_render(void);
+MY_API void my_window_position(int x, int y);
+MY_API void my_window_size(int width, int height);
+MY_API void my_window_title(const char* title);
+MY_API void my_window_color(MyColor color);
+MY_API void my_window_viewport(float x, float y, float width, float height);
+MY_API void my_window_vsync(bool vsync);
+MY_API void my_window_depth(bool depth);
+MY_API void my_window_cursor(bool cursor);
 
-MYENGINE_API float my_window_get_cursor_x(void);
-MYENGINE_API float my_window_get_cursor_y(void);
-MYENGINE_API float my_window_get_cursor_delta_x(void);
-MYENGINE_API float my_window_get_cursor_delta_y(void);
-MYENGINE_API MyKeyState my_window_get_key_state(MyKey key);
+MY_API float my_window_get_cursor_x(void);
+MY_API float my_window_get_cursor_y(void);
+MY_API float my_window_get_cursor_delta_x(void);
+MY_API float my_window_get_cursor_delta_y(void);
+MY_API MyKeyState my_window_get_key_state(MyKey key);
+
+////////////////////////////////////////////////////////////////////////////////
+// Clock Functions
+////////////////////////////////////////////////////////////////////////////////
+
+MY_API MyHandle my_clock_create(void);
+MY_API void my_clock_destroy(MyHandle clockHandle);
+MY_API void my_clock_start(MyHandle clockHandle);
+MY_API void my_clock_stop(MyHandle clockHandle);
+MY_API void my_clock_reset(MyHandle clockHandle);
+MY_API void my_clock_interval(MyHandle clockHandle, float interval);
+MY_API void my_clock_callback(MyHandle clockHandle, MyClockCallback callback);
+
+MY_API float my_clock_get_time(MyHandle clockHandle);
+MY_API float my_clock_get_progress(MyHandle clockHandle);
 
 ////////////////////////////////////////////////////////////////////////////////
 // Float Functions
 ////////////////////////////////////////////////////////////////////////////////
 
-MYENGINE_API float my_float_randomize(float floor, float ceiling);
-MYENGINE_API float my_float_clamp(float value, float floor, float ceiling);
-MYENGINE_API float my_float_wrap(float value, float floor, float ceiling);
+MY_API float my_float_randomize(float floor, float ceiling);
+MY_API float my_float_clamp(float value, float floor, float ceiling);
+MY_API float my_float_wrap(float value, float floor, float ceiling);
 
 ////////////////////////////////////////////////////////////////////////////////
 // Color Functions
 ////////////////////////////////////////////////////////////////////////////////
 
-MYENGINE_API MyColor my_color_uniform(float value, bool alpha);
-MYENGINE_API MyColor my_color_randomize(bool alpha);
-MYENGINE_API MyColor my_color_clamp(MyColor color);
+MY_API MyColor my_color_uniform(float value, bool alpha);
+MY_API MyColor my_color_randomize(bool alpha);
+MY_API MyColor my_color_clamp(MyColor color);
 
 ////////////////////////////////////////////////////////////////////////////////
 // Vector Functions
 ////////////////////////////////////////////////////////////////////////////////
 
-MYENGINE_API MyVector my_vector_uniform(float value);
-MYENGINE_API MyVector my_vector_randomize(MyVector floor, MyVector ceiling);
-MYENGINE_API MyVector my_vector_add(MyVector lhs, MyVector rhs);
-MYENGINE_API MyVector my_vector_subtract(MyVector lhs, MyVector rhs);
-MYENGINE_API MyVector my_vector_scale_uniform(MyVector vector, float factor);
-MYENGINE_API MyVector my_vector_scale_nonuniform(MyVector lhs, MyVector rhs);
-MYENGINE_API MyVector my_vector_negate(MyVector vector);
-MYENGINE_API float my_vector_length(MyVector vector);
-MYENGINE_API MyVector my_vector_normalize(MyVector vector);
-MYENGINE_API float my_vector_dot(MyVector lhs, MyVector rhs);
-MYENGINE_API MyVector my_vector_cross(MyVector lhs, MyVector rhs);
-MYENGINE_API MyVector my_vector_rotate(MyVector vector, MyVector rotation);
-MYENGINE_API MyVector my_vector_clamp(MyVector vector, MyVector floor, MyVector ceiling);
-MYENGINE_API MyVector my_vector_wrap(MyVector vector, MyVector floor, MyVector ceiling);
-MYENGINE_API void my_vector_basis(MyVector* basisX, MyVector* basisY, MyVector* basisZ, MyVector rotation);
+MY_API MyVector my_vector_uniform(float value);
+MY_API MyVector my_vector_randomize(MyVector floor, MyVector ceiling);
+MY_API MyVector my_vector_add(MyVector lhs, MyVector rhs);
+MY_API MyVector my_vector_subtract(MyVector lhs, MyVector rhs);
+MY_API MyVector my_vector_scale_uniform(MyVector vector, float factor);
+MY_API MyVector my_vector_scale_nonuniform(MyVector lhs, MyVector rhs);
+MY_API MyVector my_vector_negate(MyVector vector);
+MY_API float my_vector_length(MyVector vector);
+MY_API MyVector my_vector_normalize(MyVector vector);
+MY_API float my_vector_dot(MyVector lhs, MyVector rhs);
+MY_API MyVector my_vector_cross(MyVector lhs, MyVector rhs);
+MY_API MyVector my_vector_rotate(MyVector vector, MyVector rotation);
+MY_API MyVector my_vector_clamp(MyVector vector, MyVector floor, MyVector ceiling);
+MY_API MyVector my_vector_wrap(MyVector vector, MyVector floor, MyVector ceiling);
+MY_API void my_vector_basis(MyVector* basisX, MyVector* basisY, MyVector* basisZ, MyVector rotation);
 
 ////////////////////////////////////////////////////////////////////////////////
 // Transform Functions
 ////////////////////////////////////////////////////////////////////////////////
 
-MYENGINE_API MyTransform my_transform_multiply(MyTransform lhs, MyTransform rhs);
-MYENGINE_API MyTransform my_transform_translate(MyTransform transform, MyVector translation);
-MYENGINE_API MyTransform my_transform_scale_uniform(MyTransform transform, float factor);
-MYENGINE_API MyTransform my_transform_scale_nonuniform(MyTransform transform, MyVector factor);
-MYENGINE_API MyTransform my_transform_rotate(MyTransform transform, MyVector rotation);
+MY_API MyTransform my_transform_multiply(MyTransform lhs, MyTransform rhs);
+MY_API MyTransform my_transform_translate(MyTransform transform, MyVector translation);
+MY_API MyTransform my_transform_scale_uniform(MyTransform transform, float factor);
+MY_API MyTransform my_transform_scale_nonuniform(MyTransform transform, MyVector factor);
+MY_API MyTransform my_transform_rotate(MyTransform transform, MyVector rotation);
 
 ////////////////////////////////////////////////////////////////////////////////
 // File Functions
 ////////////////////////////////////////////////////////////////////////////////
 
-MYENGINE_API char* my_file_read(const char* path);
-MYENGINE_API char* my_file_extension(const char* path);
+MY_API char* my_file_read(const char* path);
+MY_API char* my_file_extension(const char* path);
 
 #endif

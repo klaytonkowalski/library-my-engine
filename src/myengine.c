@@ -37,12 +37,33 @@
 #include <math.h>
 
 ////////////////////////////////////////////////////////////////////////////////
+// Macros
+////////////////////////////////////////////////////////////////////////////////
+
+#define MY_INVALID_HANDLE 0
+
+#define MY_DEFAULT_CLOCK 1
+
+////////////////////////////////////////////////////////////////////////////////
 // Types
 ////////////////////////////////////////////////////////////////////////////////
+
+typedef struct MyClock
+{
+    MyHandle clockHandle;
+    MyClockCallback callback;
+    float lastTime;
+    float totalTime;
+    float interval;
+    float intervalTime;
+    bool active;
+}
+MyClock;
 
 typedef struct MyEngine
 {
     GLFWwindow* window;
+    MyClock clocks[MY_OPTION_CAPACITY_CLOCK];
     int windowX;
     int windowY;
     int windowWidth;
@@ -57,6 +78,8 @@ typedef struct MyEngine
     double cursorDeltaY;
     MyKey keyStates[MY_KEY_COUNT];
     GLbitfield renderMask;
+    int frameCount;
+    int frameRate;
 }
 MyEngine;
 
@@ -66,6 +89,8 @@ MyEngine;
 
 static void my_window_position_callback(GLFWwindow* window, int x, int y);
 static void my_window_size_callback(GLFWwindow* window, int width, int height);
+
+static void my_clock_frame_callback(MyHandle clockHandle);
 
 ////////////////////////////////////////////////////////////////////////////////
 // Variables
@@ -217,6 +242,14 @@ bool my_window_create(int x, int y, int width, int height, const char* title)
     my_window_vsync(true);
     my_window_depth(true);
     myEngine.renderMask = GL_COLOR_BUFFER_BIT;
+    if (!my_clock_create())
+    {
+        my_window_destroy();
+        return false;
+    }
+    my_clock_interval(MY_DEFAULT_CLOCK, 1.0f);
+    my_clock_callback(MY_DEFAULT_CLOCK, my_clock_frame_callback);
+    my_clock_start(MY_DEFAULT_CLOCK);
     stbi_set_flip_vertically_on_load(true);
     return true;
 }
@@ -370,6 +403,79 @@ static void my_window_size_callback(GLFWwindow* window, int width, int height)
     myEngine.windowWidth = width;
     myEngine.windowHeight = height;
     glViewport(myEngine.windowWidth * myEngine.viewportX, myEngine.windowHeight * myEngine.viewportY, myEngine.viewportWidth * width, myEngine.viewportHeight * height);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+// Clock Functions
+////////////////////////////////////////////////////////////////////////////////
+
+MyHandle my_clock_create(void)
+{
+    MyHandle clockHandle = MY_INVALID_HANDLE;
+    for (int i = 1; i < MY_OPTION_CAPACITY_CLOCK; i++)
+    {
+        if (!myEngine.clocks[i].clockHandle)
+        {
+            clockHandle = i;
+            break;
+        }
+    }
+    if (!clockHandle)
+    {
+        return MY_INVALID_HANDLE;
+    }
+    myEngine.clocks[clockHandle].clockHandle = clockHandle;
+    return clockHandle;
+}
+
+void my_clock_destroy(MyHandle clockHandle)
+{
+    myEngine.clocks[clockHandle] = (MyClock) { 0 };
+}
+
+void my_clock_start(MyHandle clockHandle)
+{
+    myEngine.clocks[clockHandle].lastTime = (float) glfwGetTime();
+    myEngine.clocks[clockHandle].active = true;
+}
+
+void my_clock_stop(MyHandle clockHandle)
+{
+    myEngine.clocks[clockHandle].active = false;
+}
+
+void my_clock_reset(MyHandle clockHandle)
+{
+    myEngine.clocks[clockHandle].lastTime = (float) glfwGetTime();
+    myEngine.clocks[clockHandle].totalTime = 0.0f;
+    myEngine.clocks[clockHandle].intervalTime = 0.0f;
+}
+
+void my_clock_interval(MyHandle clockHandle, float interval)
+{
+    myEngine.clocks[clockHandle].interval = interval;
+    myEngine.clocks[clockHandle].intervalTime = 0.0f;
+}
+
+void my_clock_callback(MyHandle clockHandle, MyClockCallback callback)
+{
+    myEngine.clocks[clockHandle].callback = callback;
+}
+
+float my_clock_get_time(MyHandle clockHandle)
+{
+    return myEngine.clocks[clockHandle].totalTime;
+}
+
+float my_clock_get_progress(MyHandle clockHandle)
+{
+    return myEngine.clocks[clockHandle].intervalTime / myEngine.clocks[clockHandle].interval;
+}
+
+static void my_clock_frame_callback(MyHandle clockHandle)
+{
+    myEngine.frameRate = myEngine.frameCount;
+    myEngine.frameCount = 0;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

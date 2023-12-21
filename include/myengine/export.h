@@ -20,28 +20,28 @@
 
 ////////////////////////////////////////////////////////////////////////////////
 
-#ifndef MYENGINE_GUARD_EXPORT
-#define MYENGINE_GUARD_EXPORT
+#ifndef MY_GUARD_EXPORT
+#define MY_GUARD_EXPORT
 
-#ifdef MYENGINE_SHARED
+#ifdef MY_SHARED
 
-    #ifdef MYENGINE_EXPORT
+    #ifdef MY_EXPORT
         #ifdef _WIN32
-            #define MYENGINE_API __declspec(dllexport)
+            #define MY_API __declspec(dllexport)
         #else
-            #define MYENGINE_API __attribute__((visibility("default")))
+            #define MY_API __attribute__((visibility("default")))
         #endif
 
     #else
         #ifdef _WIN32
-            #define MYENGINE_API __declspec(dllimport)
+            #define MY_API __declspec(dllimport)
         #else
-            #define MYENGINE_API __attribute__((visibility("default")))
+            #define MY_API __attribute__((visibility("default")))
         #endif
     #endif
 
 #else
-    #define MYENGINE_API
+    #define MY_API
 #endif
 
 #endif

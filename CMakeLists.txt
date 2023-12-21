@@ -36,25 +36,25 @@ set(CMAKE_VISIBILITY_INLINES_HIDDEN ON)
 set(CMAKE_MODULE_PATH ${CMAKE_MODULE_PATH} "${CMAKE_CURRENT_LIST_DIR}/cmake")
 
 if(CMAKE_CURRENT_SOURCE_DIR STREQUAL CMAKE_SOURCE_DIR)
-    set(MYENGINE_STANDALONE ON)
+    set(MY_STANDALONE ON)
 else()
-    set(MYENGINE_STANDALONE OFF)
+    set(MY_STANDALONE OFF)
 endif()
-set(MYENGINE_PATH_ASSETS ${CMAKE_CURRENT_LIST_DIR}/assets)
-set(MYENGINE_PATH_EXAMPLES ${CMAKE_CURRENT_LIST_DIR}/examples)
-set(MYENGINE_PATH_EXTERNAL ${CMAKE_CURRENT_LIST_DIR}/external)
-set(MYENGINE_PATH_HEADERS ${CMAKE_CURRENT_LIST_DIR}/include)
-set(MYENGINE_PATH_SOURCES ${CMAKE_CURRENT_LIST_DIR}/src)
-set(MYENGINE_FILES_HEADERS
-    ${MYENGINE_PATH_HEADERS}/myengine/export.h
-    ${MYENGINE_PATH_HEADERS}/myengine/myengine.h)
-set(MYENGINE_FILES_SOURCES
-    ${MYENGINE_PATH_SOURCES}/myengine.c)
+set(MY_PATH_ASSETS ${CMAKE_CURRENT_LIST_DIR}/assets)
+set(MY_PATH_EXAMPLES ${CMAKE_CURRENT_LIST_DIR}/examples)
+set(MY_PATH_EXTERNAL ${CMAKE_CURRENT_LIST_DIR}/external)
+set(MY_PATH_HEADERS ${CMAKE_CURRENT_LIST_DIR}/include)
+set(MY_PATH_SOURCES ${CMAKE_CURRENT_LIST_DIR}/src)
+set(MY_FILES_HEADERS
+    ${MY_PATH_HEADERS}/myengine/export.h
+    ${MY_PATH_HEADERS}/myengine/myengine.h)
+set(MY_FILES_SOURCES
+    ${MY_PATH_SOURCES}/myengine.c)
 
-set(GLAD_PATH_HEADERS ${MYENGINE_PATH_EXTERNAL}/glad/include)
-set(GLAD_PATH_SOURCES ${MYENGINE_PATH_EXTERNAL}/glad/src)
-set(GLFW_PATH ${MYENGINE_PATH_EXTERNAL}/glfw)
-set(STB_IMAGE_PATH_HEADERS ${MYENGINE_PATH_EXTERNAL}/stb_image/include)
+set(GLAD_PATH_HEADERS ${MY_PATH_EXTERNAL}/glad/include)
+set(GLAD_PATH_SOURCES ${MY_PATH_EXTERNAL}/glad/src)
+set(GLFW_PATH ${MY_PATH_EXTERNAL}/glfw)
+set(STB_IMAGE_PATH_HEADERS ${MY_PATH_EXTERNAL}/stb_image/include)
 
 set(GLAD_FILES_HEADERS
     ${GLAD_PATH_HEADERS}/glad/gl.h
@@ -87,7 +87,7 @@ target_include_directories(stb_image
 
 add_subdirectory(${GLFW_PATH})
 
-add_library(myengine STATIC ${MYENGINE_FILES_SOURCES})
+add_library(myengine STATIC ${MY_FILES_SOURCES})
 
 target_link_libraries(myengine
     PUBLIC
@@ -97,14 +97,15 @@ target_link_libraries(myengine
 
 target_include_directories(myengine
     PUBLIC
-    $<BUILD_INTERFACE:${MYENGINE_PATH_HEADERS}>)
+    $<BUILD_INTERFACE:${MY_PATH_HEADERS}>)
 
 target_compile_definitions(myengine
     PRIVATE
-    MYENGINE_EXPORT
-    $<BUILD_INTERFACE:MYENGINE_PATH_ASSETS=\"${MYENGINE_PATH_ASSETS}\">)
+    MY_EXPORT
+    MY_OPTION_CAPACITY_CLOCK=${MY_OPTION_CAPACITY_CLOCK}
+    $<BUILD_INTERFACE:MY_PATH_ASSETS=\"${MY_PATH_ASSETS}\">)
 
-if(MYENGINE_OPTION_EXAMPLES)
-    add_executable(example ${MYENGINE_PATH_EXAMPLES}/example/example.c)
+if(MY_OPTION_EXAMPLES)
+    add_executable(example ${MY_PATH_EXAMPLES}/example/example.c)
     target_link_libraries(example PRIVATE myengine)
 endif()
