@@ -240,8 +240,9 @@ MY_API int my_window_get_frame_rate(void);
 // Texture Functions
 ////////////////////////////////////////////////////////////////////////////////
 
-MY_API MyHandle my_texture_create(const char* imagePath);
+MY_API MyHandle my_texture_create(const char* imagePath, int frameCount);
 MY_API void my_texture_destroy(MyHandle textureHandle);
+MY_API void my_texture_frame(MyHandle textureHandle, int frameIndex, int x, int y, int width, int height);
 
 ////////////////////////////////////////////////////////////////////////////////
 // Shader Functions

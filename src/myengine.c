@@ -48,14 +48,25 @@
 // Types
 ////////////////////////////////////////////////////////////////////////////////
 
+typedef struct MyTextureFrame
+{
+    int x;
+    int y;
+    int width;
+    int height;
+}
+MyTextureFrame;
+
 typedef struct MyTexture
 {
     MyHandle textureHandle;
+    stbi_uc* pixels;
+    MyTextureFrame* frames;
     GLuint texture;
-    stbi_uc* imageData;
     int width;
     int height;
     int channelCount;
+    int frameCount;
     bool transparent;
 }
 MyTexture;
@@ -267,16 +278,16 @@ bool my_window_create(int x, int y, int width, int height, const char* title)
     my_window_vsync(true);
     my_window_depth(true);
     myEngine.renderMask = GL_COLOR_BUFFER_BIT;
-    if (!my_texture_create(MY_PATH_ASSETS "/images/pixel.png"))
+    if (!my_texture_create(MY_PATH_ASSETS "/images/pixel.png", 1))
     {
         my_window_destroy();
         return false;
     }
-    // if (!my_shader_create(MY_PATH_ASSETS "/shaders/vertex/entity.glsl", MY_PATH_ASSETS "/shaders/fragment/entity.glsl"))
-    // {
-    //     my_window_destroy();
-    //     return false;
-    // }
+    if (!my_shader_create(MY_PATH_ASSETS "/shaders/vertex/entity.glsl", MY_PATH_ASSETS "/shaders/fragment/entity.glsl"))
+    {
+        my_window_destroy();
+        return false;
+    }
     if (!my_clock_create())
     {
         my_window_destroy();
@@ -471,7 +482,7 @@ static void my_window_size_callback(GLFWwindow* window, int width, int height)
 // Texture Functions
 ////////////////////////////////////////////////////////////////////////////////
 
-MyHandle my_texture_create(const char* imagePath)
+MyHandle my_texture_create(const char* imagePath, int frameCount)
 {
     MyHandle textureHandle = MY_INVALID_HANDLE;
     for (int i = 1; i < MY_OPTION_CAPACITY_TEXTURE; i++)
@@ -489,25 +500,37 @@ MyHandle my_texture_create(const char* imagePath)
     const char* extension = my_file_extension(imagePath);
     if (strcmp(extension, ".png") == 0)
     {
-        myEngine.textures[textureHandle].imageData = stbi_load(imagePath, &myEngine.textures[textureHandle].width, &myEngine.textures[textureHandle].height, &myEngine.textures[textureHandle].channelCount, 0);
+        myEngine.textures[textureHandle].pixels = stbi_load(imagePath, &myEngine.textures[textureHandle].width, &myEngine.textures[textureHandle].height, &myEngine.textures[textureHandle].channelCount, 0);
     }
-    if (!myEngine.textures[textureHandle].imageData)
+    if (!myEngine.textures[textureHandle].pixels)
     {
         my_texture_destroy(textureHandle);
         return MY_INVALID_HANDLE;
     }
     if (myEngine.textures[textureHandle].channelCount == 4)
     {
-        const int imageDataSize = myEngine.textures[textureHandle].width * myEngine.textures[textureHandle].height * 4;
-        for (int i = 3; i < imageDataSize; i += 4)
+        const int pixelsSize = myEngine.textures[textureHandle].width * myEngine.textures[textureHandle].height * 4;
+        for (int i = 3; i < pixelsSize; i += 4)
         {
-            if (myEngine.textures[textureHandle].imageData[i] < 255)
+            if (myEngine.textures[textureHandle].pixels[i] < 255)
             {
                 myEngine.textures[textureHandle].transparent = true;
                 break;
             }
         }
     }
+    myEngine.textures[textureHandle].frames = calloc(frameCount, sizeof(MyTextureFrame));
+    if (!myEngine.textures[textureHandle].frames)
+    {
+        my_texture_destroy(textureHandle);
+        return MY_INVALID_HANDLE;
+    }
+    for (int i = 0; i < frameCount; i++)
+    {
+        myEngine.textures[textureHandle].frames[i].width = myEngine.textures[textureHandle].width;
+        myEngine.textures[textureHandle].frames[i].height = myEngine.textures[textureHandle].height;
+    }
+    myEngine.textures[textureHandle].frameCount = frameCount;
     glCreateTextures(GL_TEXTURE_2D, 1, &myEngine.textures[textureHandle].texture);
     if (!myEngine.textures[textureHandle].texture)
     {
@@ -519,22 +542,31 @@ MyHandle my_texture_create(const char* imagePath)
     glTextureParameteri(myEngine.textures[textureHandle].texture, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
     glTextureParameteri(myEngine.textures[textureHandle].texture, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
     glTextureStorage2D(myEngine.textures[textureHandle].texture, 1, GL_RGBA8, myEngine.textures[textureHandle].width, myEngine.textures[textureHandle].height);
-    glTextureSubImage2D(myEngine.textures[textureHandle].texture, 0, 0, 0, myEngine.textures[textureHandle].width, myEngine.textures[textureHandle].height, GL_RGBA, GL_UNSIGNED_BYTE, myEngine.textures[textureHandle].imageData);
+    glTextureSubImage2D(myEngine.textures[textureHandle].texture, 0, 0, 0, myEngine.textures[textureHandle].width, myEngine.textures[textureHandle].height, GL_RGBA, GL_UNSIGNED_BYTE, myEngine.textures[textureHandle].pixels);
     myEngine.textures[textureHandle].textureHandle = textureHandle;
     return textureHandle;
 }
 
 void my_texture_destroy(MyHandle textureHandle)
 {
+    if (myEngine.textures[textureHandle].pixels)
+    {
+        stbi_image_free(myEngine.textures[textureHandle].pixels);
+    }
+    if (myEngine.textures[textureHandle].frames)
+    {
+        free(myEngine.textures[textureHandle].frames);
+    }
     if (myEngine.textures[textureHandle].texture)
     {
         glDeleteTextures(1, &myEngine.textures[textureHandle].texture);
     }
-    if (myEngine.textures[textureHandle].imageData)
-    {
-        stbi_image_free(myEngine.textures[textureHandle].imageData);
-    }
     myEngine.textures[textureHandle] = (MyTexture) { 0 };
+}
+
+void my_texture_frame(MyHandle textureHandle, int frameIndex, int x, int y, int width, int height)
+{
+    myEngine.textures[textureHandle].frames[frameIndex] = (MyTextureFrame) { x, y, width, height };
 }
 
 ////////////////////////////////////////////////////////////////////////////////
