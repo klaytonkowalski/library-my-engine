@@ -36,7 +36,7 @@
 ////////////////////////////////////////////////////////////////////////////////
 
 #define MY_DEFAULT_TEXTURE 1
-#define MY_DEFAULT_SHADER_ENTITY 1
+#define MY_DEFAULT_SHADER_SPRITE 1
 
 #define MY_COLOR_WHITE (MyColor) { 1.0f, 1.0f, 1.0f, 1.0f }
 #define MY_COLOR_BLACK (MyColor) { 0.0f, 0.0f, 0.0f, 1.0f }
@@ -229,12 +229,17 @@ MY_API void my_window_vsync(bool vsync);
 MY_API void my_window_depth(bool depth);
 MY_API void my_window_cursor(bool cursor);
 
-MY_API float my_window_get_cursor_x(void);
-MY_API float my_window_get_cursor_y(void);
-MY_API float my_window_get_cursor_delta_x(void);
-MY_API float my_window_get_cursor_delta_y(void);
+MY_API float my_window_get_cursor(float* x, float* y);
+MY_API float my_window_get_cursor_delta(float* x, float* y);
 MY_API MyKeyState my_window_get_key_state(MyKey key);
 MY_API int my_window_get_frame_rate(void);
+
+////////////////////////////////////////////////////////////////////////////////
+// Sprite Functions
+////////////////////////////////////////////////////////////////////////////////
+
+MY_API MyHandle my_sprite_create(int width, int height);
+MY_API void my_sprite_destroy(MyHandle spriteHandle);
 
 ////////////////////////////////////////////////////////////////////////////////
 // Texture Functions

@@ -44,9 +44,49 @@
 
 #define MY_DEFAULT_CLOCK 1
 
+#define MY_COUNT_SPRITE_VERTEX 4
+#define MY_COUNT_SPRITE_INDEX 6
+
 ////////////////////////////////////////////////////////////////////////////////
 // Types
 ////////////////////////////////////////////////////////////////////////////////
+
+typedef struct MyBody
+{
+    MyVector position;
+    MyVector scale;
+    MyVector rotation;
+    MyTransform transform;
+}
+MyBody;
+
+typedef struct MySpriteVertex
+{
+    float positionX;
+    float positionY;
+    float positionZ;
+    float textureX;
+    float textureY;
+}
+MySpriteVertex;
+
+typedef struct MySpriteMesh
+{
+    MySpriteVertex vertices[MY_COUNT_SPRITE_VERTEX];
+    GLubyte indices[MY_COUNT_SPRITE_INDEX];
+}
+MySpriteMesh;
+
+typedef struct MySprite
+{
+    MyHandle spriteHandle;
+    MyHandle textureHandle;
+    MyHandle shaderHandle;
+    MySpriteMesh mesh;
+    MyBody body;
+    int frameIndex;
+}
+MySprite;
 
 typedef struct MyTextureFrame
 {
@@ -97,6 +137,7 @@ MyClock;
 typedef struct MyEngine
 {
     GLFWwindow* window;
+    MySprite sprites[MY_OPTION_CAPACITY_SPRITE];
     MyTexture textures[MY_OPTION_CAPACITY_TEXTURE];
     MyShader shaders[MY_OPTION_CAPACITY_SHADER];
     MyClock clocks[MY_OPTION_CAPACITY_CLOCK];
@@ -302,6 +343,13 @@ bool my_window_create(int x, int y, int width, int height, const char* title)
 
 void my_window_destroy(void)
 {
+    for (int i = 1; i < MY_OPTION_CAPACITY_SPRITE; i++)
+    {
+        if (myEngine.sprites[i].spriteHandle)
+        {
+            my_sprite_destroy(i);
+        }
+    }
     for (int i = 1; i < MY_OPTION_CAPACITY_TEXTURE; i++)
     {
         if (myEngine.textures[i].textureHandle)
@@ -370,6 +418,25 @@ bool my_window_prepare(void)
             }
         }
     }
+    const float windowTime = (float) glfwGetTime();
+    for (int i = 1; i < MY_OPTION_CAPACITY_CLOCK; i++)
+    {
+        if (myEngine.clocks[i].clockHandle)
+        {
+            const float frameTime = windowTime - myEngine.clocks[i].lastTime;
+            myEngine.clocks[i].lastTime = windowTime;
+            myEngine.clocks[i].totalTime += frameTime;
+            myEngine.clocks[i].intervalTime += frameTime;
+            if (myEngine.clocks[i].callback)
+            {
+                if (myEngine.clocks[i].intervalTime > myEngine.clocks[i].interval)
+                {
+                    myEngine.clocks[i].intervalTime = 0.0f;
+                    myEngine.clocks[i].callback(i);
+                }
+            }
+        }
+    }
     myEngine.frameCount++;
     glfwSwapBuffers(myEngine.window);
     glClear(myEngine.renderMask);
@@ -383,7 +450,7 @@ void my_window_render(void)
 
 void my_window_position(int x, int y)
 {
-    glfwSetWindowPos(myEngine.window, myEngine.windowX, myEngine.windowY);
+    glfwSetWindowPos(myEngine.window, x, y);
 }
 
 void my_window_size(int width, int height)
@@ -435,24 +502,16 @@ void my_window_cursor(bool cursor)
     glfwSetInputMode(myEngine.window, GLFW_CURSOR, cursor ? GLFW_CURSOR_NORMAL : GLFW_CURSOR_DISABLED);
 }
 
-float my_window_get_cursor_x(void)
+float my_window_get_cursor(float* x, float* y)
 {
-    return myEngine.cursorX;
+    *x = myEngine.cursorX;
+    *y = myEngine.cursorY;
 }
 
-float my_window_get_cursor_y(void)
+float my_window_get_cursor_delta(float* x, float* y)
 {
-    return myEngine.cursorY;
-}
-
-float my_window_get_cursor_delta_x(void)
-{
-    return myEngine.cursorDeltaX;
-}
-
-float my_window_get_cursor_delta_y(void)
-{
-    return myEngine.cursorDeltaY;
+    *x = myEngine.cursorDeltaX;
+    *y = myEngine.cursorDeltaY;
 }
 
 MyKeyState my_window_get_key_state(MyKey key)
@@ -476,6 +535,48 @@ static void my_window_size_callback(GLFWwindow* window, int width, int height)
     myEngine.windowWidth = width;
     myEngine.windowHeight = height;
     glViewport(myEngine.windowWidth * myEngine.viewportX, myEngine.windowHeight * myEngine.viewportY, myEngine.viewportWidth * width, myEngine.viewportHeight * height);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+// Sprite Functions
+////////////////////////////////////////////////////////////////////////////////
+
+MyHandle my_sprite_create(int width, int height)
+{
+    MyHandle spriteHandle = MY_INVALID_HANDLE;
+    for (int i = 1; i < MY_OPTION_CAPACITY_SPRITE; i++)
+    {
+        if (!myEngine.sprites[i].spriteHandle)
+        {
+            spriteHandle = i;
+            break;
+        }
+    }
+    if (!spriteHandle)
+    {
+        return MY_INVALID_HANDLE;
+    }
+    myEngine.sprites[spriteHandle].spriteHandle = spriteHandle;
+    myEngine.sprites[spriteHandle].textureHandle = MY_DEFAULT_TEXTURE;
+    myEngine.sprites[spriteHandle].shaderHandle = MY_DEFAULT_SHADER_SPRITE;
+    myEngine.sprites[spriteHandle].mesh.vertices[0] = (MySpriteVertex) { -width * 0.5f, -height * 0.5f, 0.0f, 0.0f, 0.0f };
+    myEngine.sprites[spriteHandle].mesh.vertices[1] = (MySpriteVertex) { width * 0.5f, -height * 0.5f, 0.0f, 1.0f, 0.0f };
+    myEngine.sprites[spriteHandle].mesh.vertices[2] = (MySpriteVertex) { width * 0.5f, height * 0.5f, 0.0f, 1.0f, 1.0f };
+    myEngine.sprites[spriteHandle].mesh.vertices[3] = (MySpriteVertex) { -width * 0.5f, height * 0.5f, 0.0f, 0.0f, 1.0f };
+    myEngine.sprites[spriteHandle].mesh.indices[0] = 0;
+    myEngine.sprites[spriteHandle].mesh.indices[1] = 1;
+    myEngine.sprites[spriteHandle].mesh.indices[2] = 2;
+    myEngine.sprites[spriteHandle].mesh.indices[3] = 2;
+    myEngine.sprites[spriteHandle].mesh.indices[4] = 3;
+    myEngine.sprites[spriteHandle].mesh.indices[5] = 0;
+    myEngine.sprites[spriteHandle].body.scale = (MyVector) { 1.0f, 1.0f, 1.0f };
+    myEngine.sprites[spriteHandle].body.transform = MY_TRANSFORM_IDENTITY;
+    return spriteHandle;
+}
+
+void my_sprite_destroy(MyHandle spriteHandle)
+{
+    myEngine.sprites[spriteHandle] = (MySprite) { 0 };
 }
 
 ////////////////////////////////////////////////////////////////////////////////
