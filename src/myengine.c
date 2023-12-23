@@ -47,9 +47,29 @@
 #define MY_COUNT_SPRITE_VERTEX 4
 #define MY_COUNT_SPRITE_INDEX 6
 
+#define MY_BUFFER_SPRITE_VERTEX 0
+#define MY_BUFFER_SPRITE_TRANSFORM 1
+
+#define MY_VERTEX_SPRITE_POSITION 0
+#define MY_VERTEX_SPRITE_TEXTURE 1
+#define MY_VERTEX_SPRITE_TRANSFORM_X 2
+#define MY_VERTEX_SPRITE_TRANSFORM_Y 3
+#define MY_VERTEX_SPRITE_TRANSFORM_Z 4
+#define MY_VERTEX_SPRITE_TRANSFORM_W 5
+
 ////////////////////////////////////////////////////////////////////////////////
 // Types
 ////////////////////////////////////////////////////////////////////////////////
+
+typedef struct MyIndirect
+{
+    unsigned int indexCount;
+    unsigned int instanceCount;
+    unsigned int indexOffset;
+    unsigned int vertexOffset;
+    unsigned int instanceOffset;
+}
+MyIndirect;
 
 typedef struct MyBody
 {
@@ -59,6 +79,18 @@ typedef struct MyBody
     MyTransform transform;
 }
 MyBody;
+
+// typedef struct MySpriteBatch
+// {
+//     MyHandle batchHandle;
+//     MyHandle textureHandle;
+//     MyHandle shaderHandle;
+//     GLuint vertexBuffer;
+//     GLuint indexBuffer;
+//     GLuint transformBuffer;
+//     GLuint indirectBuffer;
+// }
+// MyBatch;
 
 typedef struct MySpriteVertex
 {
@@ -85,6 +117,7 @@ typedef struct MySprite
     MySpriteMesh mesh;
     MyBody body;
     int frameIndex;
+    int renderOrder;
 }
 MySprite;
 
@@ -141,6 +174,7 @@ typedef struct MyEngine
     MyTexture textures[MY_OPTION_CAPACITY_TEXTURE];
     MyShader shaders[MY_OPTION_CAPACITY_SHADER];
     MyClock clocks[MY_OPTION_CAPACITY_CLOCK];
+    GLuint spriteFormat;
     int windowX;
     int windowY;
     int windowWidth;
@@ -168,6 +202,8 @@ static void my_window_position_callback(GLFWwindow* window, int x, int y);
 static void my_window_size_callback(GLFWwindow* window, int width, int height);
 
 static void my_clock_frame_callback(MyHandle clockHandle);
+
+static void my_body_transform(MyBody* body);
 
 ////////////////////////////////////////////////////////////////////////////////
 // Variables
@@ -319,6 +355,30 @@ bool my_window_create(int x, int y, int width, int height, const char* title)
     my_window_vsync(true);
     my_window_depth(true);
     myEngine.renderMask = GL_COLOR_BUFFER_BIT;
+    glCreateVertexArrays(1, &myEngine.spriteFormat);
+    if (!myEngine.spriteFormat)
+    {
+        my_window_destroy();
+        return false;
+    }
+    glVertexArrayAttribBinding(myEngine.spriteFormat, MY_VERTEX_SPRITE_POSITION, MY_BUFFER_SPRITE_VERTEX);
+    glVertexArrayAttribBinding(myEngine.spriteFormat, MY_VERTEX_SPRITE_TEXTURE, MY_BUFFER_SPRITE_VERTEX);
+    glVertexArrayAttribBinding(myEngine.spriteFormat, MY_VERTEX_SPRITE_TRANSFORM_X, MY_BUFFER_SPRITE_TRANSFORM);
+    glVertexArrayAttribBinding(myEngine.spriteFormat, MY_VERTEX_SPRITE_TRANSFORM_Y, MY_BUFFER_SPRITE_TRANSFORM);
+    glVertexArrayAttribBinding(myEngine.spriteFormat, MY_VERTEX_SPRITE_TRANSFORM_Z, MY_BUFFER_SPRITE_TRANSFORM);
+    glVertexArrayAttribBinding(myEngine.spriteFormat, MY_VERTEX_SPRITE_TRANSFORM_W, MY_BUFFER_SPRITE_TRANSFORM);
+    glVertexArrayAttribFormat(myEngine.spriteFormat, MY_VERTEX_SPRITE_POSITION, 3, GL_FLOAT, GL_FALSE, offsetof(MySpriteVertex, positionX));
+    glVertexArrayAttribFormat(myEngine.spriteFormat, MY_VERTEX_SPRITE_TEXTURE, 2, GL_FLOAT, GL_FALSE, offsetof(MySpriteVertex, textureX));
+    glVertexArrayAttribFormat(myEngine.spriteFormat, MY_VERTEX_SPRITE_TRANSFORM_X, 4, GL_FLOAT, GL_FALSE, offsetof(MyTransform, m1));
+    glVertexArrayAttribFormat(myEngine.spriteFormat, MY_VERTEX_SPRITE_TRANSFORM_Y, 4, GL_FLOAT, GL_FALSE, offsetof(MyTransform, m2));
+    glVertexArrayAttribFormat(myEngine.spriteFormat, MY_VERTEX_SPRITE_TRANSFORM_Z, 4, GL_FLOAT, GL_FALSE, offsetof(MyTransform, m3));
+    glVertexArrayAttribFormat(myEngine.spriteFormat, MY_VERTEX_SPRITE_TRANSFORM_W, 4, GL_FLOAT, GL_FALSE, offsetof(MyTransform, m4));
+    glEnableVertexArrayAttrib(myEngine.spriteFormat, MY_VERTEX_SPRITE_POSITION);
+    glEnableVertexArrayAttrib(myEngine.spriteFormat, MY_VERTEX_SPRITE_TEXTURE);
+    glEnableVertexArrayAttrib(myEngine.spriteFormat, MY_VERTEX_SPRITE_TRANSFORM_X);
+    glEnableVertexArrayAttrib(myEngine.spriteFormat, MY_VERTEX_SPRITE_TRANSFORM_Y);
+    glEnableVertexArrayAttrib(myEngine.spriteFormat, MY_VERTEX_SPRITE_TRANSFORM_Z);
+    glEnableVertexArrayAttrib(myEngine.spriteFormat, MY_VERTEX_SPRITE_TRANSFORM_W);
     if (!my_texture_create(MY_PATH_ASSETS "/images/pixel.png", 1))
     {
         my_window_destroy();
@@ -370,6 +430,10 @@ void my_window_destroy(void)
         {
             my_clock_destroy(i);
         }
+    }
+    if (myEngine.spriteFormat)
+    {
+        glDeleteVertexArrays(1, &myEngine.spriteFormat);
     }
     if (myEngine.window)
     {
@@ -577,6 +641,39 @@ MyHandle my_sprite_create(int width, int height)
 void my_sprite_destroy(MyHandle spriteHandle)
 {
     myEngine.sprites[spriteHandle] = (MySprite) { 0 };
+}
+
+void my_sprite_position(MyHandle spriteHandle, MyVector position, bool absolute)
+{
+    myEngine.sprites[spriteHandle].body.position = absolute ? position : my_vector_add(myEngine.sprites[spriteHandle].body.position, position);
+    my_body_transform(&myEngine.sprites[spriteHandle].body);
+}
+
+void my_sprite_scale(MyHandle spriteHandle, MyVector scale, bool absolute)
+{
+    myEngine.sprites[spriteHandle].body.scale = absolute ? scale : my_vector_scale(myEngine.sprites[spriteHandle].body.scale, scale);
+    my_body_transform(&myEngine.sprites[spriteHandle].body);
+}
+
+void my_sprite_rotation(MyHandle spriteHandle, MyVector rotation, bool absolute)
+{
+    myEngine.sprites[spriteHandle].body.rotation = absolute ? rotation : my_vector_add(myEngine.sprites[spriteHandle].body.rotation, rotation);
+    my_body_transform(&myEngine.sprites[spriteHandle].body);
+}
+
+MyVector my_sprite_get_position(MyHandle spriteHandle)
+{
+    return myEngine.sprites[spriteHandle].body.position;
+}
+
+MyVector my_sprite_get_scale(MyHandle spriteHandle)
+{
+    return myEngine.sprites[spriteHandle].body.scale;
+}
+
+MyVector my_sprite_get_rotation(MyHandle spriteHandle)
+{
+    return myEngine.sprites[spriteHandle].body.rotation;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -969,23 +1066,13 @@ MyVector my_vector_subtract(MyVector lhs, MyVector rhs)
     };
 }
 
-MyVector my_vector_scale_uniform(MyVector vector, float factor)
+MyVector my_vector_scale(MyVector vector, MyVector scale)
 {
     return (MyVector)
     {
-        vector.x * factor,
-        vector.y * factor,
-        vector.z * factor
-    };
-}
-
-MyVector my_vector_scale_nonuniform(MyVector lhs, MyVector rhs)
-{
-    return (MyVector)
-    {
-        lhs.x * rhs.x,
-        lhs.y * rhs.y,
-        lhs.z * rhs.z
+        vector.x * scale.x,
+        vector.y * scale.y,
+        vector.z * scale.z
     };
 }
 
@@ -1011,7 +1098,7 @@ MyVector my_vector_normalize(MyVector vector)
     {
         return MY_VECTOR_ZERO;
     }
-    return my_vector_scale_uniform(vector, 1.0f / length);
+    return my_vector_scale(vector, my_vector_uniform(1.0f / length));
 }
 
 float my_vector_dot(MyVector lhs, MyVector rhs)
@@ -1132,19 +1219,11 @@ MyTransform my_transform_translate(MyTransform transform, MyVector translation)
     return transform;
 }
 
-MyTransform my_transform_scale_uniform(MyTransform transform, float factor)
+MyTransform my_transform_scale(MyTransform transform, MyVector scale)
 {
-    transform.m1 *= factor;
-    transform.m6 *= factor;
-    transform.m11 *= factor;
-    return transform;
-}
-
-MyTransform my_transform_scale_nonuniform(MyTransform transform, MyVector factor)
-{
-    transform.m1 *= factor.x;
-    transform.m6 *= factor.y;
-    transform.m11 *= factor.z;
+    transform.m1 *= scale.x;
+    transform.m6 *= scale.y;
+    transform.m11 *= scale.z;
     return transform;
 }
 
@@ -1223,4 +1302,16 @@ char* my_file_read(const char* path)
 char* my_file_extension(const char* path)
 {
     return strrchr(path, '.');
+}
+
+////////////////////////////////////////////////////////////////////////////////
+// Body Functions
+////////////////////////////////////////////////////////////////////////////////
+
+static void my_body_transform(MyBody* body)
+{
+    body->transform = MY_TRANSFORM_IDENTITY;
+    body->transform = my_transform_scale(body->transform, body->scale);
+    body->transform = my_transform_rotate(body->transform, body->rotation);
+    body->transform = my_transform_translate(body->transform, body->position);
 }

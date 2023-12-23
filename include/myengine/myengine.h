@@ -240,6 +240,13 @@ MY_API int my_window_get_frame_rate(void);
 
 MY_API MyHandle my_sprite_create(int width, int height);
 MY_API void my_sprite_destroy(MyHandle spriteHandle);
+MY_API void my_sprite_position(MyHandle spriteHandle, MyVector position, bool absolute);
+MY_API void my_sprite_scale(MyHandle spriteHandle, MyVector scale, bool absolute);
+MY_API void my_sprite_rotation(MyHandle spriteHandle, MyVector rotation, bool absolute);
+
+MY_API MyVector my_sprite_get_position(MyHandle spriteHandle);
+MY_API MyVector my_sprite_get_scale(MyHandle spriteHandle);
+MY_API MyVector my_sprite_get_rotation(MyHandle spriteHandle);
 
 ////////////////////////////////////////////////////////////////////////////////
 // Texture Functions
@@ -295,8 +302,7 @@ MY_API MyVector my_vector_uniform(float value);
 MY_API MyVector my_vector_randomize(MyVector floor, MyVector ceiling);
 MY_API MyVector my_vector_add(MyVector lhs, MyVector rhs);
 MY_API MyVector my_vector_subtract(MyVector lhs, MyVector rhs);
-MY_API MyVector my_vector_scale_uniform(MyVector vector, float factor);
-MY_API MyVector my_vector_scale_nonuniform(MyVector lhs, MyVector rhs);
+MY_API MyVector my_vector_scale(MyVector vector, MyVector scale);
 MY_API MyVector my_vector_negate(MyVector vector);
 MY_API float my_vector_length(MyVector vector);
 MY_API MyVector my_vector_normalize(MyVector vector);
@@ -313,8 +319,7 @@ MY_API void my_vector_basis(MyVector* basisX, MyVector* basisY, MyVector* basisZ
 
 MY_API MyTransform my_transform_multiply(MyTransform lhs, MyTransform rhs);
 MY_API MyTransform my_transform_translate(MyTransform transform, MyVector translation);
-MY_API MyTransform my_transform_scale_uniform(MyTransform transform, float factor);
-MY_API MyTransform my_transform_scale_nonuniform(MyTransform transform, MyVector factor);
+MY_API MyTransform my_transform_scale(MyTransform transform, MyVector scale);
 MY_API MyTransform my_transform_rotate(MyTransform transform, MyVector rotation);
 
 ////////////////////////////////////////////////////////////////////////////////
