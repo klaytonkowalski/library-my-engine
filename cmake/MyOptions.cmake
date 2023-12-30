@@ -21,8 +21,3 @@
 ################################################################################
 
 set(MY_OPTION_EXAMPLES ON CACHE BOOL "Build example projects.")
-
-set(MY_OPTION_CAPACITY_SPRITE "1000" CACHE STRING "Sprite capacity.")
-set(MY_OPTION_CAPACITY_TEXTURE "100" CACHE STRING "Texture capacity.")
-set(MY_OPTION_CAPACITY_SHADER "100" CACHE STRING "Shader capacity.")
-set(MY_OPTION_CAPACITY_CLOCK "100" CACHE STRING "Clock capacity.")

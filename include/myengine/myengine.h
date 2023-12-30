@@ -240,6 +240,7 @@ MY_API int my_window_get_frame_rate(void);
 
 MY_API MyHandle my_sprite_create(int width, int height);
 MY_API void my_sprite_destroy(MyHandle spriteHandle);
+MY_API void my_sprite_render(MyHandle spriteHandle, bool render);
 MY_API void my_sprite_position(MyHandle spriteHandle, MyVector position, bool absolute);
 MY_API void my_sprite_scale(MyHandle spriteHandle, MyVector scale, bool absolute);
 MY_API void my_sprite_rotation(MyHandle spriteHandle, MyVector rotation, bool absolute);
@@ -317,6 +318,7 @@ MY_API void my_vector_basis(MyVector* basisX, MyVector* basisY, MyVector* basisZ
 // Transform Functions
 ////////////////////////////////////////////////////////////////////////////////
 
+MY_API MyTransform my_transform_compose(MyVector position, MyVector scale, MyVector rotation);
 MY_API MyTransform my_transform_multiply(MyTransform lhs, MyTransform rhs);
 MY_API MyTransform my_transform_translate(MyTransform transform, MyVector translation);
 MY_API MyTransform my_transform_scale(MyTransform transform, MyVector scale);
