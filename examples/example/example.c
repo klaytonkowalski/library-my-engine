@@ -33,6 +33,8 @@
 int main(int argc, char* argv[])
 {
     my_window_create(0, 0, 800, 800, "Example");
+    my_sprite_create(1, 1);
+    my_sprite_render(1, true);
     while (my_window_prepare())
     {
         if (my_window_get_key_state(MY_KEY_ESCAPE) == MY_KEY_STATE_PRESSED)

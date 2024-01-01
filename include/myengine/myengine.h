@@ -232,6 +232,7 @@ MY_API void my_window_cursor(bool cursor);
 MY_API float my_window_get_cursor(float* x, float* y);
 MY_API float my_window_get_cursor_delta(float* x, float* y);
 MY_API MyKeyState my_window_get_key_state(MyKey key);
+MY_API float my_window_get_time(void);
 MY_API int my_window_get_frame_rate(void);
 
 ////////////////////////////////////////////////////////////////////////////////

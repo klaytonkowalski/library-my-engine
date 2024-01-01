@@ -1,8 +1,14 @@
 #version 460 core
 
-out vec4 outVertexColor;
+#define MY_UNIFORM_SPRITE_TEXTURE 0
+
+out vec4 outSpriteColor;
+
+in vec2 forwardSpriteTexture;
+
+layout (location = MY_UNIFORM_SPRITE_TEXTURE) uniform sampler2D uniformTexture;
 
 void main()
 {
-    outVertexColor = vec4(1, 1, 1, 1);
+    outSpriteColor = texture(uniformTexture, forwardSpriteTexture);
 }
