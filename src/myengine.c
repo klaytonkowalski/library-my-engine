@@ -104,7 +104,8 @@ typedef struct MySprite
     MyHandle textureHandle;
     MyHandle shaderHandle;
     MyHandle batchHandle;
-    MySpriteVertex vertices[6];
+    MySpriteVertex vertices[4];
+    GLushort indices[6];
     MyVector position;
     MyVector scale;
     MyVector rotation;
@@ -612,10 +613,13 @@ void my_window_render(void)
                 glBindVertexArray(myEngine.spriteFormat);
                 glVertexArrayVertexBuffer(myEngine.spriteFormat, MY_BUFFER_SPRITE_VERTEX, myEngine.batches[i].vertexBuffer, 0, sizeof(MySpriteVertex));
                 glVertexArrayVertexBuffer(myEngine.spriteFormat, MY_BUFFER_SPRITE_TRANSFORM, myEngine.batches[i].transformBuffer, 0, sizeof(MyTransform));
+                glVertexArrayElementBuffer(myEngine.spriteFormat, myEngine.batches[i].indexBuffer);
                 glUseProgram(myEngine.shaders[shaderHandle].program);
                 glProgramUniform1i(myEngine.shaders[shaderHandle].program, MY_UNIFORM_SPRITE_TEXTURE, 0);
                 glBindTextureUnit(MY_SAMPLER_SPRITE, myEngine.textures[textureHandle].texture);
-                glDrawArrays(GL_TRIANGLES, 0, myEngine.batches[i].objectCount * 6);
+                GLushort thing[6];
+                glGetNamedBufferSubData(myEngine.batches[i].indexBuffer, 0, sizeof(GLushort) *6, thing);
+                glDrawElements(GL_TRIANGLES, 6, GL_UNSIGNED_SHORT, NULL);
             }
         }
     }
@@ -751,9 +755,8 @@ MyHandle my_sprite_create(int width, int height)
     myEngine.sprites[spriteHandle].vertices[0] = (MySpriteVertex) { -width * 0.5f, -height * 0.5f, 0.0f, 0.0f, 0.0f };
     myEngine.sprites[spriteHandle].vertices[1] = (MySpriteVertex) { width * 0.5f, -height * 0.5f, 0.0f, 1.0f, 0.0f };
     myEngine.sprites[spriteHandle].vertices[2] = (MySpriteVertex) { width * 0.5f, height * 0.5f, 0.0f, 1.0f, 1.0f };
-    myEngine.sprites[spriteHandle].vertices[3] = (MySpriteVertex) { width * 0.5f, height * 0.5f, 0.0f, 1.0f, 1.0f };
-    myEngine.sprites[spriteHandle].vertices[4] = (MySpriteVertex) { -width * 0.5f, height * 0.5f, 0.0f, 0.0f, 1.0f };
-    myEngine.sprites[spriteHandle].vertices[5] = (MySpriteVertex) { -width * 0.5f, -height * 0.5f, 0.0f, 0.0f, 0.0f };
+    myEngine.sprites[spriteHandle].vertices[3] = (MySpriteVertex) { -width * 0.5f, height * 0.5f, 0.0f, 0.0f, 1.0f };
+    memcpy(myEngine.sprites[spriteHandle].indices, (GLushort[]) { 0, 1, 2, 2, 3, 0 }, sizeof(GLushort) * 6);
     myEngine.sprites[spriteHandle].scale = (MyVector) { 1.0f, 1.0f, 1.0f };
     myEngine.sprites[spriteHandle].transform = MY_TRANSFORM_IDENTITY;
     return spriteHandle;
@@ -1419,9 +1422,9 @@ MyTransform my_transform_multiply(MyTransform lhs, MyTransform rhs)
 
 MyTransform my_transform_translate(MyTransform transform, MyVector translation)
 {
-    transform.m1 += translation.x;
-    transform.m6 += translation.y;
-    transform.m11 += translation.z;
+    transform.m4 += translation.x;
+    transform.m8 += translation.y;
+    transform.m12 += translation.z;
     return transform;
 }
 
@@ -1542,6 +1545,12 @@ static MyHandle my_batch_create(MyBatchType type, MyHandle objectHandle)
         my_batch_destroy(batchHandle);
         return MY_INVALID_HANDLE;
     }
+    glCreateBuffers(1, &myEngine.batches[batchHandle].indexBuffer);
+    if (!myEngine.batches[batchHandle].indexBuffer)
+    {
+        my_batch_destroy(batchHandle);
+        return MY_INVALID_HANDLE;
+    }
     glCreateBuffers(1, &myEngine.batches[batchHandle].transformBuffer);
     if (!myEngine.batches[batchHandle].transformBuffer)
     {
@@ -1550,8 +1559,10 @@ static MyHandle my_batch_create(MyBatchType type, MyHandle objectHandle)
     }
     if (type == MY_BATCH_TYPE_SPRITE)
     {
-        glNamedBufferStorage(myEngine.batches[batchHandle].vertexBuffer, MY_ALLOCATOR_BATCH_OBJECT * sizeof(MySpriteVertex) * 6, NULL, GL_DYNAMIC_STORAGE_BIT);
-        myEngine.batches[batchHandle].vertexCapacity = MY_ALLOCATOR_BATCH_OBJECT * 6;
+        glNamedBufferStorage(myEngine.batches[batchHandle].vertexBuffer, MY_ALLOCATOR_BATCH_OBJECT * sizeof(MySpriteVertex) * 4, NULL, GL_DYNAMIC_STORAGE_BIT);
+        glNamedBufferStorage(myEngine.batches[batchHandle].indexBuffer, MY_ALLOCATOR_BATCH_OBJECT * sizeof(GLushort) * 6, NULL, GL_DYNAMIC_STORAGE_BIT);
+        myEngine.batches[batchHandle].vertexCapacity = MY_ALLOCATOR_BATCH_OBJECT * 4;
+        myEngine.batches[batchHandle].indexCapacity = MY_ALLOCATOR_BATCH_OBJECT * 6;
         myEngine.batches[batchHandle].textureHandle = myEngine.sprites[objectHandle].textureHandle;
         myEngine.batches[batchHandle].shaderHandle = myEngine.sprites[objectHandle].shaderHandle;
     }
@@ -1639,7 +1650,7 @@ static bool my_batch_add(MyBatchType type, MyHandle objectHandle)
     }
     if (type == MY_BATCH_TYPE_SPRITE)
     {
-        if (myEngine.batches[batchHandle].vertexCount + 6 > myEngine.batches[batchHandle].vertexCapacity)
+        if (myEngine.batches[batchHandle].vertexCount + 4 > myEngine.batches[batchHandle].vertexCapacity)
         {
             GLuint vertexBuffer;
             glCreateBuffers(1, &vertexBuffer);
@@ -1648,16 +1659,32 @@ static bool my_batch_add(MyBatchType type, MyHandle objectHandle)
                 my_batch_destroy(batchHandle);
                 return false;
             }
-            glNamedBufferStorage(myEngine.batches[batchHandle].vertexBuffer, (myEngine.batches[batchHandle].vertexCapacity + MY_ALLOCATOR_BATCH_OBJECT) * sizeof(MySpriteVertex) * 6, NULL, GL_DYNAMIC_STORAGE_BIT);
-            glCopyNamedBufferSubData(myEngine.batches[batchHandle].vertexBuffer, vertexBuffer, 0, 0, myEngine.batches[batchHandle].vertexCapacity * sizeof(MySpriteVertex) * 6);
+            glNamedBufferStorage(myEngine.batches[batchHandle].vertexBuffer, (myEngine.batches[batchHandle].vertexCapacity + MY_ALLOCATOR_BATCH_OBJECT) * sizeof(MySpriteVertex) * 4, NULL, GL_DYNAMIC_STORAGE_BIT);
+            glCopyNamedBufferSubData(myEngine.batches[batchHandle].vertexBuffer, vertexBuffer, 0, 0, myEngine.batches[batchHandle].vertexCapacity * sizeof(MySpriteVertex) * 4);
             glDeleteBuffers(1, &myEngine.batches[batchHandle].vertexBuffer);
             myEngine.batches[batchHandle].vertexBuffer = vertexBuffer;
         }
-        glNamedBufferSubData(myEngine.batches[batchHandle].vertexBuffer, myEngine.batches[batchHandle].objectCount * sizeof(MySpriteVertex) * 6, sizeof(MySpriteVertex) * 6, myEngine.sprites[objectHandle].vertices);
+        if (myEngine.batches[batchHandle].indexCount + 6 > myEngine.batches[batchHandle].indexCapacity)
+        {
+            GLuint indexBuffer;
+            glCreateBuffers(1, &indexBuffer);
+            if (!indexBuffer)
+            {
+                my_batch_destroy(batchHandle);
+                return false;
+            }
+            glNamedBufferStorage(myEngine.batches[batchHandle].indexBuffer, (myEngine.batches[batchHandle].indexCapacity + MY_ALLOCATOR_BATCH_OBJECT) * sizeof(GLushort) * 6, NULL, GL_DYNAMIC_STORAGE_BIT);
+            glCopyNamedBufferSubData(myEngine.batches[batchHandle].indexBuffer, indexBuffer, 0, 0, myEngine.batches[batchHandle].indexCapacity * sizeof(GLushort) * 6);
+            glDeleteBuffers(1, &myEngine.batches[batchHandle].indexBuffer);
+            myEngine.batches[batchHandle].indexBuffer = indexBuffer;
+        }
+        glNamedBufferSubData(myEngine.batches[batchHandle].vertexBuffer, myEngine.batches[batchHandle].objectCount * sizeof(MySpriteVertex) * 4, sizeof(MySpriteVertex) * 4, myEngine.sprites[objectHandle].vertices);
+        glNamedBufferSubData(myEngine.batches[batchHandle].indexBuffer, myEngine.batches[batchHandle].objectCount * sizeof(GLushort) * 6, sizeof(GLushort) * 6, myEngine.sprites[objectHandle].indices);
         glNamedBufferSubData(myEngine.batches[batchHandle].transformBuffer, myEngine.batches[batchHandle].objectCount * sizeof(MyTransform), sizeof(MyTransform), &myEngine.sprites[objectHandle].transform);
         myEngine.sprites[objectHandle].batchHandle = batchHandle;
         myEngine.sprites[objectHandle].renderOrder = myEngine.batches[batchHandle].objectCount;
-        myEngine.batches[batchHandle].vertexCount += 6;
+        myEngine.batches[batchHandle].vertexCount += 4;
+        myEngine.batches[batchHandle].indexCount += 6;
     }
     myEngine.batches[batchHandle].objectCount++;
     return true;
@@ -1672,7 +1699,8 @@ static void my_batch_remove(MyBatchType type, MyHandle objectHandle)
         // todo: swap deleted sprite with last in buffers
         myEngine.sprites[objectHandle].batchHandle = MY_INVALID_HANDLE;
         myEngine.sprites[objectHandle].renderOrder = 0;
-        myEngine.batches[batchHandle].vertexCount -= 6;
+        myEngine.batches[batchHandle].vertexCount -= 4;
+        myEngine.batches[batchHandle].indexCount -= 6;
     }
     myEngine.batches[batchHandle].objectCount--;
     if (!myEngine.batches[batchHandle].objectCount)

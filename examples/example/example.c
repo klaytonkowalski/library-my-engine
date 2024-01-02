@@ -34,9 +34,27 @@ int main(int argc, char* argv[])
 {
     my_window_create(0, 0, 800, 800, "Example");
     my_sprite_create(1, 1);
+    my_sprite_create(1, 1);
     my_sprite_render(1, true);
+    my_sprite_render(2, true);
     while (my_window_prepare())
     {
+        if (my_window_get_key_state(MY_KEY_W) == MY_KEY_STATE_DOWN)
+        {
+            my_sprite_position(1, (MyVector) { 0.0f, 0.02f, 0.0f }, false);
+        }
+        if (my_window_get_key_state(MY_KEY_A) == MY_KEY_STATE_DOWN)
+        {
+            my_sprite_position(1, (MyVector) { -0.02f, 0.0f, 0.0f }, false);
+        }
+        if (my_window_get_key_state(MY_KEY_S) == MY_KEY_STATE_DOWN)
+        {
+            my_sprite_position(1, (MyVector) { 0.0f, -0.02f, 0.0f }, false);
+        }
+        if (my_window_get_key_state(MY_KEY_D) == MY_KEY_STATE_DOWN)
+        {
+            my_sprite_position(1, (MyVector) { 0.02f, 0.0f, 0.0f }, false);
+        }
         if (my_window_get_key_state(MY_KEY_ESCAPE) == MY_KEY_STATE_PRESSED)
         {
             break;
