@@ -37,6 +37,7 @@
 
 #define MY_DEFAULT_TEXTURE 1
 #define MY_DEFAULT_SHADER_SPRITE 1
+#define MY_DEFAULT_SHADER_MESH 2
 
 #define MY_COLOR_WHITE (MyColor) { 1.0f, 1.0f, 1.0f, 1.0f }
 #define MY_COLOR_BLACK (MyColor) { 0.0f, 0.0f, 0.0f, 1.0f }
@@ -236,19 +237,24 @@ MY_API float my_window_get_time(void);
 MY_API int my_window_get_frame_rate(void);
 
 ////////////////////////////////////////////////////////////////////////////////
+// Entity Functions
+////////////////////////////////////////////////////////////////////////////////
+
+MY_API void my_entity_destroy(MyHandle entityHandle);
+MY_API void my_entity_render(MyHandle entityHandle, bool render);
+MY_API void my_entity_position(MyHandle entityHandle, MyVector position, bool absolute);
+MY_API void my_entity_scale(MyHandle entityHandle, MyVector scale, bool absolute);
+MY_API void my_entity_rotation(MyHandle entityHandle, MyVector rotation, bool absolute);
+
+MY_API MyVector my_entity_get_position(MyHandle entityHandle);
+MY_API MyVector my_entity_get_scale(MyHandle entityHandle);
+MY_API MyVector my_entity_get_rotation(MyHandle entityHandle);
+
+////////////////////////////////////////////////////////////////////////////////
 // Sprite Functions
 ////////////////////////////////////////////////////////////////////////////////
 
 MY_API MyHandle my_sprite_create(int width, int height);
-MY_API void my_sprite_destroy(MyHandle spriteHandle);
-MY_API void my_sprite_render(MyHandle spriteHandle, bool render);
-MY_API void my_sprite_position(MyHandle spriteHandle, MyVector position, bool absolute);
-MY_API void my_sprite_scale(MyHandle spriteHandle, MyVector scale, bool absolute);
-MY_API void my_sprite_rotation(MyHandle spriteHandle, MyVector rotation, bool absolute);
-
-MY_API MyVector my_sprite_get_position(MyHandle spriteHandle);
-MY_API MyVector my_sprite_get_scale(MyHandle spriteHandle);
-MY_API MyVector my_sprite_get_rotation(MyHandle spriteHandle);
 
 ////////////////////////////////////////////////////////////////////////////////
 // Texture Functions

@@ -44,19 +44,21 @@
 
 #define MY_DEFAULT_CLOCK 1
 
-#define MY_ALLOCATOR_SPRITE 1000
+#define MY_ALLOCATOR_ENTITY 1000
 #define MY_ALLOCATOR_TEXTURE 100
 #define MY_ALLOCATOR_SHADER 10
 #define MY_ALLOCATOR_CLOCK 10
 #define MY_ALLOCATOR_BATCH 100
-#define MY_ALLOCATOR_BATCH_OBJECT 100
+#define MY_ALLOCATOR_BATCH_ENTITY 100
+#define MY_ALLOCATOR_BATCH_VERTEX 10000
+#define MY_ALLOCATOR_BATCH_INDEX 10000
 
-#define MY_BUFFER_SPRITE_VERTEX 0
-#define MY_BUFFER_SPRITE_TRANSFORM 1
+#define MY_BUFFER_ENTITY_VERTEX 0
+#define MY_BUFFER_ENTITY_TRANSFORM 1
 
-#define MY_UNIFORM_SPRITE_TEXTURE 0
+#define MY_UNIFORM_ENTITY_TEXTURE 0
 
-#define MY_SAMPLER_SPRITE 0
+#define MY_SAMPLER_ENTITY 0
 
 #define MY_ATTRIBUTE_SPRITE_POSITION 0
 #define MY_ATTRIBUTE_SPRITE_TEXTURE 1
@@ -65,20 +67,19 @@
 #define MY_ATTRIBUTE_SPRITE_TRANSFORM_Z 4
 #define MY_ATTRIBUTE_SPRITE_TRANSFORM_W 5
 
+#define MY_ATTRIBUTE_MESH_POSITION 0
+#define MY_ATTRIBUTE_MESH_TEXTURE 1
+#define MY_ATTRIBUTE_MESH_NORMAL 2
+#define MY_ATTRIBUTE_MESH_TRANSFORM_X 3
+#define MY_ATTRIBUTE_MESH_TRANSFORM_Y 4
+#define MY_ATTRIBUTE_MESH_TRANSFORM_Z 5
+#define MY_ATTRIBUTE_MESH_TRANSFORM_W 6
+
 ////////////////////////////////////////////////////////////////////////////////
 // Types
 ////////////////////////////////////////////////////////////////////////////////
 
-typedef struct MyIndirectVertex
-{
-    unsigned int vertexCount;
-    unsigned int instanceCount;
-    unsigned int vertexOffset;
-    unsigned int instanceOffset;
-}
-MyIndirectVertex;
-
-typedef struct MyIndirectIndex
+typedef struct MyIndirect
 {
     unsigned int indexCount;
     unsigned int instanceCount;
@@ -86,34 +87,37 @@ typedef struct MyIndirectIndex
     unsigned int vertexOffset;
     unsigned int instanceOffset;
 }
-MyIndirectIndex;
+MyIndirect;
 
-typedef struct MySpriteVertex
+typedef enum MyEntityType
 {
-    float positionX;
-    float positionY;
-    float positionZ;
-    float textureX;
-    float textureY;
+    MY_ENTITY_TYPE_SPRITE,
+    MY_ENTITY_TYPE_MESH
 }
-MySpriteVertex;
+MyEntityType;
 
-typedef struct MySprite
+typedef struct MyEntity
 {
-    MyHandle spriteHandle;
+    MyHandle entityHandle;
     MyHandle textureHandle;
     MyHandle shaderHandle;
     MyHandle batchHandle;
-    MySpriteVertex vertices[4];
-    GLushort indices[6];
+    GLfloat* vertices;
+    GLushort* indices;
+    MyEntityType type;
     MyVector position;
     MyVector scale;
     MyVector rotation;
     MyTransform transform;
+    int entityIndex;
+    int vertexCount;
+    int vertexSize;
+    int vertexOffset;
+    int indexCount;
+    int indexIndex;
     int frameIndex;
-    int renderOrder;
 }
-MySprite;
+MyEntity;
 
 typedef struct MyTextureFrame
 {
@@ -161,12 +165,6 @@ typedef struct MyClock
 }
 MyClock;
 
-typedef enum MyBatchType
-{
-    MY_BATCH_TYPE_SPRITE
-}
-MyBatchType;
-
 typedef struct MyBatch
 {
     MyHandle batchHandle;
@@ -176,11 +174,11 @@ typedef struct MyBatch
     GLuint indexBuffer;
     GLuint transformBuffer;
     GLuint indirectBuffer;
-    MyBatchType type;
-    int objectCapacity;
-    int objectCount;
+    MyEntityType entityType;
+    int entityCapacity;
+    int entityCount;
     int vertexCapacity;
-    int vertexCount;
+    int vertexOffset;
     int indexCapacity;
     int indexCount;
 }
@@ -189,12 +187,13 @@ MyBatch;
 typedef struct MyEngine
 {
     GLFWwindow* window;
-    MySprite* sprites;
+    MyEntity* entities;
     MyTexture* textures;
     MyShader* shaders;
     MyClock* clocks;
     MyBatch* batches;
     GLuint spriteFormat;
+    GLuint meshFormat;
     int windowX;
     int windowY;
     int windowWidth;
@@ -211,7 +210,7 @@ typedef struct MyEngine
     GLbitfield renderMask;
     int frameCount;
     int frameRate;
-    int spriteCapacity;
+    int entityCapacity;
     int textureCapacity;
     int shaderCapacity;
     int clockCapacity;
@@ -228,11 +227,11 @@ static void my_window_size_callback(GLFWwindow* window, int width, int height);
 
 static void my_clock_frame_callback(MyHandle clockHandle);
 
-static MyHandle my_batch_create(MyBatchType type, MyHandle objectHandle);
+static MyHandle my_batch_create(MyHandle entityHandle);
 static void my_batch_destroy(MyHandle batchHandle);
-static MyHandle my_batch_match(MyBatchType type, MyHandle objectHandle);
-static bool my_batch_add(MyBatchType type, MyHandle objectHandle);
-static void my_batch_remove(MyBatchType type, MyHandle objectHandle);
+static MyHandle my_batch_match(MyHandle entityHandle);
+static bool my_batch_add(MyHandle entityHandle);
+static void my_batch_remove(MyHandle entityHandle);
 
 ////////////////////////////////////////////////////////////////////////////////
 // Variables
@@ -384,8 +383,8 @@ bool my_window_create(int x, int y, int width, int height, const char* title)
     my_window_viewport(0.0f, 0.0f, 1.0f, 1.0f);
     my_window_vsync(true);
     my_window_depth(true);
-    myEngine.sprites = calloc(MY_ALLOCATOR_SPRITE, sizeof(MySprite));
-    if (!myEngine.sprites)
+    myEngine.entities = calloc(MY_ALLOCATOR_ENTITY, sizeof(MyEntity));
+    if (!myEngine.entities)
     {
         my_window_destroy();
         return false;
@@ -420,27 +419,55 @@ bool my_window_create(int x, int y, int width, int height, const char* title)
         my_window_destroy();
         return false;
     }
-    glVertexArrayAttribBinding(myEngine.spriteFormat, MY_ATTRIBUTE_SPRITE_POSITION, MY_BUFFER_SPRITE_VERTEX);
-    glVertexArrayAttribBinding(myEngine.spriteFormat, MY_ATTRIBUTE_SPRITE_TEXTURE, MY_BUFFER_SPRITE_VERTEX);
-    glVertexArrayAttribBinding(myEngine.spriteFormat, MY_ATTRIBUTE_SPRITE_TRANSFORM_X, MY_BUFFER_SPRITE_TRANSFORM);
-    glVertexArrayAttribBinding(myEngine.spriteFormat, MY_ATTRIBUTE_SPRITE_TRANSFORM_Y, MY_BUFFER_SPRITE_TRANSFORM);
-    glVertexArrayAttribBinding(myEngine.spriteFormat, MY_ATTRIBUTE_SPRITE_TRANSFORM_Z, MY_BUFFER_SPRITE_TRANSFORM);
-    glVertexArrayAttribBinding(myEngine.spriteFormat, MY_ATTRIBUTE_SPRITE_TRANSFORM_W, MY_BUFFER_SPRITE_TRANSFORM);
-    glVertexArrayAttribFormat(myEngine.spriteFormat, MY_ATTRIBUTE_SPRITE_POSITION, 3, GL_FLOAT, GL_FALSE, offsetof(MySpriteVertex, positionX));
-    glVertexArrayAttribFormat(myEngine.spriteFormat, MY_ATTRIBUTE_SPRITE_TEXTURE, 2, GL_FLOAT, GL_FALSE, offsetof(MySpriteVertex, textureX));
-    glVertexArrayAttribFormat(myEngine.spriteFormat, MY_ATTRIBUTE_SPRITE_TRANSFORM_X, 4, GL_FLOAT, GL_FALSE, offsetof(MyTransform, m1));
-    glVertexArrayAttribFormat(myEngine.spriteFormat, MY_ATTRIBUTE_SPRITE_TRANSFORM_Y, 4, GL_FLOAT, GL_FALSE, offsetof(MyTransform, m2));
-    glVertexArrayAttribFormat(myEngine.spriteFormat, MY_ATTRIBUTE_SPRITE_TRANSFORM_Z, 4, GL_FLOAT, GL_FALSE, offsetof(MyTransform, m3));
-    glVertexArrayAttribFormat(myEngine.spriteFormat, MY_ATTRIBUTE_SPRITE_TRANSFORM_W, 4, GL_FLOAT, GL_FALSE, offsetof(MyTransform, m4));
+    glCreateVertexArrays(1, &myEngine.meshFormat);
+    if (!myEngine.meshFormat)
+    {
+        my_window_destroy();
+        return false;
+    }
+    glVertexArrayAttribBinding(myEngine.spriteFormat, MY_ATTRIBUTE_SPRITE_POSITION, MY_BUFFER_ENTITY_VERTEX);
+    glVertexArrayAttribBinding(myEngine.spriteFormat, MY_ATTRIBUTE_SPRITE_TEXTURE, MY_BUFFER_ENTITY_VERTEX);
+    glVertexArrayAttribBinding(myEngine.spriteFormat, MY_ATTRIBUTE_SPRITE_TRANSFORM_X, MY_BUFFER_ENTITY_TRANSFORM);
+    glVertexArrayAttribBinding(myEngine.spriteFormat, MY_ATTRIBUTE_SPRITE_TRANSFORM_Y, MY_BUFFER_ENTITY_TRANSFORM);
+    glVertexArrayAttribBinding(myEngine.spriteFormat, MY_ATTRIBUTE_SPRITE_TRANSFORM_Z, MY_BUFFER_ENTITY_TRANSFORM);
+    glVertexArrayAttribBinding(myEngine.spriteFormat, MY_ATTRIBUTE_SPRITE_TRANSFORM_W, MY_BUFFER_ENTITY_TRANSFORM);
+    glVertexArrayAttribFormat(myEngine.spriteFormat, MY_ATTRIBUTE_SPRITE_POSITION, 3, GL_FLOAT, GL_FALSE, 0);
+    glVertexArrayAttribFormat(myEngine.spriteFormat, MY_ATTRIBUTE_SPRITE_TEXTURE, 2, GL_FLOAT, GL_FALSE, sizeof(GLfloat) * 3);
+    glVertexArrayAttribFormat(myEngine.spriteFormat, MY_ATTRIBUTE_SPRITE_TRANSFORM_X, 4, GL_FLOAT, GL_FALSE, 0);
+    glVertexArrayAttribFormat(myEngine.spriteFormat, MY_ATTRIBUTE_SPRITE_TRANSFORM_Y, 4, GL_FLOAT, GL_FALSE, sizeof(GLfloat) * 4);
+    glVertexArrayAttribFormat(myEngine.spriteFormat, MY_ATTRIBUTE_SPRITE_TRANSFORM_Z, 4, GL_FLOAT, GL_FALSE, sizeof(GLfloat) * 8);
+    glVertexArrayAttribFormat(myEngine.spriteFormat, MY_ATTRIBUTE_SPRITE_TRANSFORM_W, 4, GL_FLOAT, GL_FALSE, sizeof(GLfloat) * 12);
     glEnableVertexArrayAttrib(myEngine.spriteFormat, MY_ATTRIBUTE_SPRITE_POSITION);
     glEnableVertexArrayAttrib(myEngine.spriteFormat, MY_ATTRIBUTE_SPRITE_TEXTURE);
     glEnableVertexArrayAttrib(myEngine.spriteFormat, MY_ATTRIBUTE_SPRITE_TRANSFORM_X);
     glEnableVertexArrayAttrib(myEngine.spriteFormat, MY_ATTRIBUTE_SPRITE_TRANSFORM_Y);
     glEnableVertexArrayAttrib(myEngine.spriteFormat, MY_ATTRIBUTE_SPRITE_TRANSFORM_Z);
     glEnableVertexArrayAttrib(myEngine.spriteFormat, MY_ATTRIBUTE_SPRITE_TRANSFORM_W);
-    glVertexArrayBindingDivisor(myEngine.spriteFormat, MY_BUFFER_SPRITE_TRANSFORM, 1);
+    glVertexArrayBindingDivisor(myEngine.spriteFormat, MY_BUFFER_ENTITY_TRANSFORM, 1);
+    glVertexArrayAttribBinding(myEngine.meshFormat, MY_ATTRIBUTE_MESH_POSITION, MY_BUFFER_ENTITY_VERTEX);
+    glVertexArrayAttribBinding(myEngine.meshFormat, MY_ATTRIBUTE_MESH_TEXTURE, MY_BUFFER_ENTITY_VERTEX);
+    glVertexArrayAttribBinding(myEngine.meshFormat, MY_ATTRIBUTE_MESH_NORMAL, MY_BUFFER_ENTITY_VERTEX);
+    glVertexArrayAttribBinding(myEngine.meshFormat, MY_ATTRIBUTE_MESH_TRANSFORM_X, MY_BUFFER_ENTITY_TRANSFORM);
+    glVertexArrayAttribBinding(myEngine.meshFormat, MY_ATTRIBUTE_MESH_TRANSFORM_Y, MY_BUFFER_ENTITY_TRANSFORM);
+    glVertexArrayAttribBinding(myEngine.meshFormat, MY_ATTRIBUTE_MESH_TRANSFORM_Z, MY_BUFFER_ENTITY_TRANSFORM);
+    glVertexArrayAttribBinding(myEngine.meshFormat, MY_ATTRIBUTE_MESH_TRANSFORM_W, MY_BUFFER_ENTITY_TRANSFORM);
+    glVertexArrayAttribFormat(myEngine.meshFormat, MY_ATTRIBUTE_MESH_POSITION, 3, GL_FLOAT, GL_FALSE, 0);
+    glVertexArrayAttribFormat(myEngine.meshFormat, MY_ATTRIBUTE_MESH_TEXTURE, 2, GL_FLOAT, GL_FALSE, sizeof(GLfloat) * 3);
+    glVertexArrayAttribFormat(myEngine.meshFormat, MY_ATTRIBUTE_MESH_NORMAL, 3, GL_FLOAT, GL_FALSE, sizeof(GLfloat) * 5);
+    glVertexArrayAttribFormat(myEngine.meshFormat, MY_ATTRIBUTE_MESH_TRANSFORM_X, 4, GL_FLOAT, GL_FALSE, 0);
+    glVertexArrayAttribFormat(myEngine.meshFormat, MY_ATTRIBUTE_MESH_TRANSFORM_Y, 4, GL_FLOAT, GL_FALSE, sizeof(GLfloat) * 4);
+    glVertexArrayAttribFormat(myEngine.meshFormat, MY_ATTRIBUTE_MESH_TRANSFORM_Z, 4, GL_FLOAT, GL_FALSE, sizeof(GLfloat) * 8);
+    glVertexArrayAttribFormat(myEngine.meshFormat, MY_ATTRIBUTE_MESH_TRANSFORM_W, 4, GL_FLOAT, GL_FALSE, sizeof(GLfloat) * 12);
+    glEnableVertexArrayAttrib(myEngine.meshFormat, MY_ATTRIBUTE_MESH_POSITION);
+    glEnableVertexArrayAttrib(myEngine.meshFormat, MY_ATTRIBUTE_MESH_TEXTURE);
+    glEnableVertexArrayAttrib(myEngine.meshFormat, MY_ATTRIBUTE_MESH_NORMAL);
+    glEnableVertexArrayAttrib(myEngine.meshFormat, MY_ATTRIBUTE_MESH_TRANSFORM_X);
+    glEnableVertexArrayAttrib(myEngine.meshFormat, MY_ATTRIBUTE_MESH_TRANSFORM_Y);
+    glEnableVertexArrayAttrib(myEngine.meshFormat, MY_ATTRIBUTE_MESH_TRANSFORM_Z);
+    glEnableVertexArrayAttrib(myEngine.meshFormat, MY_ATTRIBUTE_MESH_TRANSFORM_W);
+    glVertexArrayBindingDivisor(myEngine.meshFormat, MY_BUFFER_ENTITY_TRANSFORM, 1);
     myEngine.renderMask |= GL_COLOR_BUFFER_BIT;
-    myEngine.spriteCapacity = MY_ALLOCATOR_SPRITE;
+    myEngine.entityCapacity = MY_ALLOCATOR_ENTITY;
     myEngine.textureCapacity = MY_ALLOCATOR_TEXTURE;
     myEngine.shaderCapacity = MY_ALLOCATOR_SHADER;
     myEngine.clockCapacity = MY_ALLOCATOR_CLOCK;
@@ -451,7 +478,12 @@ bool my_window_create(int x, int y, int width, int height, const char* title)
         my_window_destroy();
         return false;
     }
-    if (!my_shader_create(MY_PATH_ASSETS "/shaders/vertex/entity.glsl", MY_PATH_ASSETS "/shaders/fragment/entity.glsl"))
+    if (!my_shader_create(MY_PATH_ASSETS "/shaders/vertex/sprite.glsl", MY_PATH_ASSETS "/shaders/fragment/sprite.glsl"))
+    {
+        my_window_destroy();
+        return false;
+    }
+    if (!my_shader_create(MY_PATH_ASSETS "/shaders/vertex/mesh.glsl", MY_PATH_ASSETS "/shaders/fragment/mesh.glsl"))
     {
         my_window_destroy();
         return false;
@@ -471,16 +503,16 @@ void my_window_destroy(void)
 {
     for (int i = 1; i < myEngine.batchCapacity; i++)
     {
-        if (myEngine.sprites[i].batchHandle)
+        if (myEngine.entities[i].batchHandle)
         {
             my_batch_destroy(i);
         }
     }
-    for (int i = 1; i < myEngine.spriteCapacity; i++)
+    for (int i = 1; i < myEngine.entityCapacity; i++)
     {
-        if (myEngine.sprites[i].spriteHandle)
+        if (myEngine.entities[i].entityHandle)
         {
-            my_sprite_destroy(i);
+            my_entity_destroy(i);
         }
     }
     for (int i = 1; i < myEngine.textureCapacity; i++)
@@ -504,9 +536,9 @@ void my_window_destroy(void)
             my_clock_destroy(i);
         }
     }
-    if (myEngine.sprites)
+    if (myEngine.entities)
     {
-        free(myEngine.sprites);
+        free(myEngine.entities);
     }
     if (myEngine.textures)
     {
@@ -527,6 +559,10 @@ void my_window_destroy(void)
     if (myEngine.spriteFormat)
     {
         glDeleteVertexArrays(1, &myEngine.spriteFormat);
+    }
+    if (myEngine.meshFormat)
+    {
+        glDeleteVertexArrays(1, &myEngine.meshFormat);
     }
     if (myEngine.window)
     {
@@ -608,19 +644,33 @@ void my_window_render(void)
         {
             const MyHandle shaderHandle = myEngine.batches[i].shaderHandle;
             const MyHandle textureHandle = myEngine.batches[i].textureHandle;
-            if (myEngine.batches[i].type == MY_BATCH_TYPE_SPRITE)
+            if (myEngine.batches[i].entityType == MY_ENTITY_TYPE_SPRITE)
             {
                 glBindVertexArray(myEngine.spriteFormat);
-                glVertexArrayVertexBuffer(myEngine.spriteFormat, MY_BUFFER_SPRITE_VERTEX, myEngine.batches[i].vertexBuffer, 0, sizeof(MySpriteVertex));
-                glVertexArrayVertexBuffer(myEngine.spriteFormat, MY_BUFFER_SPRITE_TRANSFORM, myEngine.batches[i].transformBuffer, 0, sizeof(MyTransform));
+                glVertexArrayVertexBuffer(myEngine.spriteFormat, MY_BUFFER_ENTITY_VERTEX, myEngine.batches[i].vertexBuffer, 0, sizeof(GLfloat) * 5);
+                glVertexArrayVertexBuffer(myEngine.spriteFormat, MY_BUFFER_ENTITY_TRANSFORM, myEngine.batches[i].transformBuffer, 0, sizeof(MyTransform));
                 glVertexArrayElementBuffer(myEngine.spriteFormat, myEngine.batches[i].indexBuffer);
-                glUseProgram(myEngine.shaders[shaderHandle].program);
-                glProgramUniform1i(myEngine.shaders[shaderHandle].program, MY_UNIFORM_SPRITE_TEXTURE, 0);
-                glBindTextureUnit(MY_SAMPLER_SPRITE, myEngine.textures[textureHandle].texture);
-                GLushort thing[6];
-                glGetNamedBufferSubData(myEngine.batches[i].indexBuffer, 0, sizeof(GLushort) *6, thing);
-                glDrawElements(GL_TRIANGLES, 6, GL_UNSIGNED_SHORT, NULL);
             }
+            else if (myEngine.batches[i].entityType == MY_ENTITY_TYPE_MESH)
+            {
+                glBindVertexArray(myEngine.meshFormat);
+                glVertexArrayVertexBuffer(myEngine.meshFormat, MY_BUFFER_ENTITY_VERTEX, myEngine.batches[i].vertexBuffer, 0, sizeof(GLfloat) * 8);
+                glVertexArrayVertexBuffer(myEngine.meshFormat, MY_BUFFER_ENTITY_TRANSFORM, myEngine.batches[i].transformBuffer, 0, sizeof(MyTransform));
+                glVertexArrayElementBuffer(myEngine.meshFormat, myEngine.batches[i].indexBuffer);
+            }
+            glBindBuffer(GL_DRAW_INDIRECT_BUFFER, myEngine.batches[i].indirectBuffer);
+            glUseProgram(myEngine.shaders[shaderHandle].program);
+            glProgramUniform1i(myEngine.shaders[shaderHandle].program, MY_UNIFORM_ENTITY_TEXTURE, 0);
+            glBindTextureUnit(MY_SAMPLER_ENTITY, myEngine.textures[textureHandle].texture);
+            // float vfloats[5*4*2];
+            // glGetNamedBufferSubData(myEngine.batches[i].vertexBuffer, 0, 5*4*2 * sizeof(float), vfloats);
+            // GLushort indices[12];
+            // glGetNamedBufferSubData(myEngine.batches[i].indexBuffer, 0, 12 * sizeof(GLushort), indices);
+            // MyTransform transform[2];
+            // glGetNamedBufferSubData(myEngine.batches[i].transformBuffer, 0, 2 * sizeof(MyTransform), transform);
+            // MyIndirect indirect[2];
+            // glGetNamedBufferSubData(myEngine.batches[i].indirectBuffer, 0, sizeof(MyIndirect) * 2, indirect);
+            glMultiDrawElementsIndirect(GL_TRIANGLES, GL_UNSIGNED_SHORT, NULL, myEngine.batches[i].entityCount, 0);
         }
     }
 }
@@ -724,108 +774,133 @@ static void my_window_size_callback(GLFWwindow* window, int width, int height)
 }
 
 ////////////////////////////////////////////////////////////////////////////////
+// Entity Functions
+////////////////////////////////////////////////////////////////////////////////
+
+void my_entity_destroy(MyHandle entityHandle)
+{
+    my_entity_render(entityHandle, false);
+    myEngine.entities[entityHandle] = (MyEntity) { 0 };
+}
+
+void my_entity_render(MyHandle entityHandle, bool render)
+{
+    if (render && !myEngine.entities[entityHandle].batchHandle)
+    {
+        my_batch_add(entityHandle);
+    }
+    else if (!render && myEngine.entities[entityHandle].batchHandle)
+    {
+        my_batch_remove(entityHandle);
+    }
+}
+
+void my_entity_position(MyHandle entityHandle, MyVector position, bool absolute)
+{
+    myEngine.entities[entityHandle].position = absolute ? position : my_vector_add(myEngine.entities[entityHandle].position, position);
+    myEngine.entities[entityHandle].transform = my_transform_compose(myEngine.entities[entityHandle].position, myEngine.entities[entityHandle].scale, myEngine.entities[entityHandle].rotation);
+    if (myEngine.entities[entityHandle].batchHandle)
+    {
+        const MyHandle batchHandle = myEngine.entities[entityHandle].batchHandle;
+        glNamedBufferSubData(myEngine.batches[batchHandle].transformBuffer, myEngine.entities[entityHandle].entityIndex * sizeof(MyTransform), sizeof(MyTransform), &myEngine.entities[entityHandle].transform);
+    }
+}
+
+void my_entity_scale(MyHandle entityHandle, MyVector scale, bool absolute)
+{
+    myEngine.entities[entityHandle].scale = absolute ? scale : my_vector_scale(myEngine.entities[entityHandle].scale, scale);
+    myEngine.entities[entityHandle].transform = my_transform_compose(myEngine.entities[entityHandle].position, myEngine.entities[entityHandle].scale, myEngine.entities[entityHandle].rotation);
+    if (myEngine.entities[entityHandle].batchHandle)
+    {
+        const MyHandle batchHandle = myEngine.entities[entityHandle].batchHandle;
+        glNamedBufferSubData(myEngine.batches[batchHandle].transformBuffer, myEngine.entities[entityHandle].entityIndex * sizeof(MyTransform), sizeof(MyTransform), &myEngine.entities[entityHandle].transform);
+    }
+}
+
+void my_entity_rotation(MyHandle entityHandle, MyVector rotation, bool absolute)
+{
+    myEngine.entities[entityHandle].rotation = absolute ? rotation : my_vector_add(myEngine.entities[entityHandle].rotation, rotation);
+    myEngine.entities[entityHandle].transform = my_transform_compose(myEngine.entities[entityHandle].position, myEngine.entities[entityHandle].scale, myEngine.entities[entityHandle].rotation);
+    if (myEngine.entities[entityHandle].batchHandle)
+    {
+        const MyHandle batchHandle = myEngine.entities[entityHandle].batchHandle;
+        glNamedBufferSubData(myEngine.batches[batchHandle].transformBuffer, myEngine.entities[entityHandle].entityIndex * sizeof(MyTransform), sizeof(MyTransform), &myEngine.entities[entityHandle].transform);
+    }
+}
+
+MyVector my_entity_get_position(MyHandle entityHandle)
+{
+    return myEngine.entities[entityHandle].position;
+}
+
+MyVector my_entity_get_scale(MyHandle entityHandle)
+{
+    return myEngine.entities[entityHandle].scale;
+}
+
+MyVector my_entity_get_rotation(MyHandle entityHandle)
+{
+    return myEngine.entities[entityHandle].rotation;
+}
+
+////////////////////////////////////////////////////////////////////////////////
 // Sprite Functions
 ////////////////////////////////////////////////////////////////////////////////
 
 MyHandle my_sprite_create(int width, int height)
 {
-    MyHandle spriteHandle = MY_INVALID_HANDLE;
-    for (int i = 1; i < myEngine.spriteCapacity; i++)
+    MyHandle entityHandle = MY_INVALID_HANDLE;
+    for (int i = 1; i < myEngine.entityCapacity; i++)
     {
-        if (!myEngine.sprites[i].spriteHandle)
+        if (!myEngine.entities[i].entityHandle)
         {
-            spriteHandle = i;
+            entityHandle = i;
             break;
         }
     }
-    if (!spriteHandle)
+    if (!entityHandle)
     {
-        MySprite* sprites = realloc(myEngine.sprites, (myEngine.spriteCapacity + MY_ALLOCATOR_SPRITE) * sizeof(MySprite));
-        if (!sprites)
+        MyEntity* entities = realloc(myEngine.entities, (myEngine.entityCapacity + MY_ALLOCATOR_ENTITY) * sizeof(MyEntity));
+        if (!entities)
         {
             return MY_INVALID_HANDLE;
         }
-        spriteHandle = myEngine.spriteCapacity;
-        myEngine.sprites = sprites;
-        myEngine.spriteCapacity += MY_ALLOCATOR_SPRITE;
+        entityHandle = myEngine.entityCapacity;
+        myEngine.entities = entities;
+        myEngine.entityCapacity += MY_ALLOCATOR_ENTITY;
     }
-    myEngine.sprites[spriteHandle].spriteHandle = spriteHandle;
-    myEngine.sprites[spriteHandle].textureHandle = MY_DEFAULT_TEXTURE;
-    myEngine.sprites[spriteHandle].shaderHandle = MY_DEFAULT_SHADER_SPRITE;
-    myEngine.sprites[spriteHandle].vertices[0] = (MySpriteVertex) { -width * 0.5f, -height * 0.5f, 0.0f, 0.0f, 0.0f };
-    myEngine.sprites[spriteHandle].vertices[1] = (MySpriteVertex) { width * 0.5f, -height * 0.5f, 0.0f, 1.0f, 0.0f };
-    myEngine.sprites[spriteHandle].vertices[2] = (MySpriteVertex) { width * 0.5f, height * 0.5f, 0.0f, 1.0f, 1.0f };
-    myEngine.sprites[spriteHandle].vertices[3] = (MySpriteVertex) { -width * 0.5f, height * 0.5f, 0.0f, 0.0f, 1.0f };
-    memcpy(myEngine.sprites[spriteHandle].indices, (GLushort[]) { 0, 1, 2, 2, 3, 0 }, sizeof(GLushort) * 6);
-    myEngine.sprites[spriteHandle].scale = (MyVector) { 1.0f, 1.0f, 1.0f };
-    myEngine.sprites[spriteHandle].transform = MY_TRANSFORM_IDENTITY;
-    return spriteHandle;
-}
-
-void my_sprite_destroy(MyHandle spriteHandle)
-{
-    my_sprite_render(spriteHandle, false);
-    myEngine.sprites[spriteHandle] = (MySprite) { 0 };
-}
-
-void my_sprite_render(MyHandle spriteHandle, bool render)
-{
-    if (render && !myEngine.sprites[spriteHandle].batchHandle)
+    myEngine.entities[entityHandle].vertices = calloc(20, sizeof(float));
+    if (!myEngine.entities[entityHandle].vertices)
     {
-        my_batch_add(MY_BATCH_TYPE_SPRITE, spriteHandle);
+        my_entity_destroy(entityHandle);
+        return MY_INVALID_HANDLE;
     }
-    else if (!render && myEngine.sprites[spriteHandle].batchHandle)
+    myEngine.entities[entityHandle].indices = calloc(6, sizeof(GLushort));
+    if (!myEngine.entities[entityHandle].indices)
     {
-        my_batch_remove(MY_BATCH_TYPE_SPRITE, spriteHandle);
+        my_entity_destroy(entityHandle);
+        return MY_INVALID_HANDLE;
     }
-}
-
-void my_sprite_position(MyHandle spriteHandle, MyVector position, bool absolute)
-{
-    myEngine.sprites[spriteHandle].position = absolute ? position : my_vector_add(myEngine.sprites[spriteHandle].position, position);
-    myEngine.sprites[spriteHandle].transform = my_transform_compose(myEngine.sprites[spriteHandle].position, myEngine.sprites[spriteHandle].scale, myEngine.sprites[spriteHandle].rotation);
-    if (myEngine.sprites[spriteHandle].batchHandle)
+    myEngine.entities[entityHandle].entityHandle = entityHandle;
+    myEngine.entities[entityHandle].textureHandle = MY_DEFAULT_TEXTURE;
+    myEngine.entities[entityHandle].shaderHandle = MY_DEFAULT_SHADER_SPRITE;
+    const GLfloat vertices[] =
     {
-        const MyHandle batchHandle = myEngine.sprites[spriteHandle].batchHandle;
-        glNamedBufferSubData(myEngine.batches[batchHandle].transformBuffer, myEngine.sprites[spriteHandle].renderOrder * sizeof(MyTransform), sizeof(MyTransform), &myEngine.sprites[spriteHandle].transform);
-    }
-}
-
-void my_sprite_scale(MyHandle spriteHandle, MyVector scale, bool absolute)
-{
-    myEngine.sprites[spriteHandle].scale = absolute ? scale : my_vector_scale(myEngine.sprites[spriteHandle].scale, scale);
-    myEngine.sprites[spriteHandle].transform = my_transform_compose(myEngine.sprites[spriteHandle].position, myEngine.sprites[spriteHandle].scale, myEngine.sprites[spriteHandle].rotation);
-    if (myEngine.sprites[spriteHandle].batchHandle)
-    {
-        const MyHandle batchHandle = myEngine.sprites[spriteHandle].batchHandle;
-        glNamedBufferSubData(myEngine.batches[batchHandle].transformBuffer, myEngine.sprites[spriteHandle].renderOrder * sizeof(MyTransform), sizeof(MyTransform), &myEngine.sprites[spriteHandle].transform);
-    }
-}
-
-void my_sprite_rotation(MyHandle spriteHandle, MyVector rotation, bool absolute)
-{
-    myEngine.sprites[spriteHandle].rotation = absolute ? rotation : my_vector_add(myEngine.sprites[spriteHandle].rotation, rotation);
-    myEngine.sprites[spriteHandle].transform = my_transform_compose(myEngine.sprites[spriteHandle].position, myEngine.sprites[spriteHandle].scale, myEngine.sprites[spriteHandle].rotation);
-    if (myEngine.sprites[spriteHandle].batchHandle)
-    {
-        const MyHandle batchHandle = myEngine.sprites[spriteHandle].batchHandle;
-        glNamedBufferSubData(myEngine.batches[batchHandle].transformBuffer, myEngine.sprites[spriteHandle].renderOrder * sizeof(MyTransform), sizeof(MyTransform), &myEngine.sprites[spriteHandle].transform);
-    }
-}
-
-MyVector my_sprite_get_position(MyHandle spriteHandle)
-{
-    return myEngine.sprites[spriteHandle].position;
-}
-
-MyVector my_sprite_get_scale(MyHandle spriteHandle)
-{
-    return myEngine.sprites[spriteHandle].scale;
-}
-
-MyVector my_sprite_get_rotation(MyHandle spriteHandle)
-{
-    return myEngine.sprites[spriteHandle].rotation;
+        -width * 0.5f, -height * 0.5f, 0.0f, 0.0f, 0.0f,
+        width * 0.5f, -height * 0.5f, 0.0f, 1.0f, 0.0f,
+        width * 0.5f, height * 0.5f, 0.0f, 1.0f, 1.0f,
+        -width * 0.5f, height * 0.5f, 0.0f, 0.0f, 1.0f
+    };
+    const GLushort indices[] = { 0, 1, 2, 2, 3, 0 };
+    memcpy(myEngine.entities[entityHandle].vertices, vertices, sizeof(vertices));
+    memcpy(myEngine.entities[entityHandle].indices, indices, sizeof(indices));
+    myEngine.entities[entityHandle].type = MY_ENTITY_TYPE_SPRITE;
+    myEngine.entities[entityHandle].scale = (MyVector) { 1.0f, 1.0f, 1.0f };
+    myEngine.entities[entityHandle].transform = MY_TRANSFORM_IDENTITY;
+    myEngine.entities[entityHandle].vertexCount = 4;
+    myEngine.entities[entityHandle].vertexSize = sizeof(GLfloat) * 5;
+    myEngine.entities[entityHandle].indexCount = 6;
+    return entityHandle;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -913,11 +988,11 @@ void my_texture_destroy(MyHandle textureHandle)
             my_batch_destroy(i);
         }
     }
-    for (int i = 1; i < myEngine.spriteCapacity; i++)
+    for (int i = 1; i < myEngine.entityCapacity; i++)
     {
-        if (myEngine.sprites[i].textureHandle == textureHandle)
+        if (myEngine.entities[i].textureHandle == textureHandle)
         {
-            myEngine.sprites[i].textureHandle = MY_INVALID_HANDLE;
+            myEngine.entities[i].textureHandle = MY_INVALID_HANDLE;
         }
     }
     if (myEngine.textures[textureHandle].pixels)
@@ -1039,11 +1114,11 @@ void my_shader_destroy(MyHandle shaderHandle)
             my_batch_destroy(i);
         }
     }
-    for (int i = 1; i < myEngine.spriteCapacity; i++)
+    for (int i = 1; i < myEngine.entityCapacity; i++)
     {
-        if (myEngine.sprites[i].shaderHandle == shaderHandle)
+        if (myEngine.entities[i].shaderHandle == shaderHandle)
         {
-            myEngine.sprites[i].shaderHandle = MY_INVALID_HANDLE;
+            myEngine.entities[i].shaderHandle = MY_INVALID_HANDLE;
         }
     }
     if (myEngine.shaders[shaderHandle].vertexStage)
@@ -1517,7 +1592,7 @@ char* my_file_extension(const char* path)
 // Batch Functions
 ////////////////////////////////////////////////////////////////////////////////
 
-static MyHandle my_batch_create(MyBatchType type, MyHandle objectHandle)
+static MyHandle my_batch_create(MyHandle entityHandle)
 {
     MyHandle batchHandle = MY_INVALID_HANDLE;
     for (int i = 1; i < myEngine.batchCapacity; i++)
@@ -1557,33 +1632,36 @@ static MyHandle my_batch_create(MyBatchType type, MyHandle objectHandle)
         my_batch_destroy(batchHandle);
         return MY_INVALID_HANDLE;
     }
-    if (type == MY_BATCH_TYPE_SPRITE)
+    glCreateBuffers(1, &myEngine.batches[batchHandle].indirectBuffer);
+    if (!myEngine.batches[batchHandle].indirectBuffer)
     {
-        glNamedBufferStorage(myEngine.batches[batchHandle].vertexBuffer, MY_ALLOCATOR_BATCH_OBJECT * sizeof(MySpriteVertex) * 4, NULL, GL_DYNAMIC_STORAGE_BIT);
-        glNamedBufferStorage(myEngine.batches[batchHandle].indexBuffer, MY_ALLOCATOR_BATCH_OBJECT * sizeof(GLushort) * 6, NULL, GL_DYNAMIC_STORAGE_BIT);
-        myEngine.batches[batchHandle].vertexCapacity = MY_ALLOCATOR_BATCH_OBJECT * 4;
-        myEngine.batches[batchHandle].indexCapacity = MY_ALLOCATOR_BATCH_OBJECT * 6;
-        myEngine.batches[batchHandle].textureHandle = myEngine.sprites[objectHandle].textureHandle;
-        myEngine.batches[batchHandle].shaderHandle = myEngine.sprites[objectHandle].shaderHandle;
+        my_batch_destroy(batchHandle);
+        return MY_INVALID_HANDLE;
     }
-    glNamedBufferStorage(myEngine.batches[batchHandle].transformBuffer, MY_ALLOCATOR_BATCH_OBJECT * sizeof(MyTransform), NULL, GL_DYNAMIC_STORAGE_BIT);
+    glNamedBufferStorage(myEngine.batches[batchHandle].vertexBuffer, MY_ALLOCATOR_BATCH_VERTEX, NULL, GL_DYNAMIC_STORAGE_BIT);
+    glNamedBufferStorage(myEngine.batches[batchHandle].indexBuffer, MY_ALLOCATOR_BATCH_INDEX, NULL, GL_DYNAMIC_STORAGE_BIT);
+    glNamedBufferStorage(myEngine.batches[batchHandle].transformBuffer, MY_ALLOCATOR_BATCH_ENTITY * sizeof(MyTransform), NULL, GL_DYNAMIC_STORAGE_BIT);
+    glNamedBufferStorage(myEngine.batches[batchHandle].indirectBuffer, MY_ALLOCATOR_BATCH_ENTITY * sizeof(MyIndirect), NULL, GL_DYNAMIC_STORAGE_BIT);
     myEngine.batches[batchHandle].batchHandle = batchHandle;
-    myEngine.batches[batchHandle].type = type;
-    myEngine.batches[batchHandle].objectCapacity = MY_ALLOCATOR_BATCH_OBJECT;
+    myEngine.batches[batchHandle].textureHandle = myEngine.entities[entityHandle].textureHandle;
+    myEngine.batches[batchHandle].shaderHandle = myEngine.entities[entityHandle].shaderHandle;
+    myEngine.batches[batchHandle].entityType = myEngine.entities[entityHandle].type;
+    myEngine.batches[batchHandle].entityCapacity = MY_ALLOCATOR_BATCH_ENTITY;
+    myEngine.batches[batchHandle].vertexCapacity = MY_ALLOCATOR_BATCH_ENTITY * 4;
+    myEngine.batches[batchHandle].indexCapacity = MY_ALLOCATOR_BATCH_ENTITY * 6;
     return batchHandle;
 }
 
 static void my_batch_destroy(MyHandle batchHandle)
 {
-    if (myEngine.batches[batchHandle].type == MY_BATCH_TYPE_SPRITE)
+    for (int i = 1; i < myEngine.entityCapacity; i++)
     {
-        for (int i = 0; i < myEngine.spriteCapacity; i++)
+        if (myEngine.entities[i].batchHandle == batchHandle)
         {
-            if (myEngine.sprites[i].batchHandle == batchHandle)
-            {
-                myEngine.sprites[i].batchHandle = MY_INVALID_HANDLE;
-                myEngine.sprites[i].renderOrder = 0;
-            }
+            myEngine.entities[i].batchHandle = MY_INVALID_HANDLE;
+            myEngine.entities[i].entityIndex = 0;
+            myEngine.entities[i].vertexOffset = 0;
+            myEngine.entities[i].indexIndex = 0;
         }
     }
     if (myEngine.batches[batchHandle].vertexBuffer)
@@ -1605,105 +1683,113 @@ static void my_batch_destroy(MyHandle batchHandle)
     myEngine.batches[batchHandle] = (MyBatch) { 0 };
 }
 
-static MyHandle my_batch_match(MyBatchType type, MyHandle objectHandle)
+static MyHandle my_batch_match(MyHandle entityHandle)
 {
     MyHandle batchHandle = MY_INVALID_HANDLE;
-    if (type == MY_BATCH_TYPE_SPRITE)
+    for (int i = 1; i < myEngine.batchCapacity; i++)
     {
-        for (int i = 1; i < myEngine.batchCapacity; i++)
+        if (myEngine.batches[i].batchHandle &&
+            myEngine.batches[i].textureHandle == myEngine.entities[entityHandle].textureHandle &&
+            myEngine.batches[i].shaderHandle == myEngine.entities[entityHandle].shaderHandle)
         {
-            if (myEngine.batches[i].batchHandle &&
-                myEngine.batches[i].textureHandle == myEngine.sprites[objectHandle].textureHandle &&
-                myEngine.batches[i].shaderHandle == myEngine.sprites[objectHandle].shaderHandle)
-            {
-                return i;
-            }
+            return i;
         }
     }
     return MY_INVALID_HANDLE;
 }
 
-static bool my_batch_add(MyBatchType type, MyHandle objectHandle)
+static bool my_batch_add(MyHandle entityHandle)
 {
-    MyHandle batchHandle = my_batch_match(type, objectHandle);
+    MyHandle batchHandle = my_batch_match(entityHandle);
     if (!batchHandle)
     {
-        batchHandle = my_batch_create(type, objectHandle);
+        batchHandle = my_batch_create(entityHandle);
         if (!batchHandle)
         {
             return false;
         }
     }
-    if (myEngine.batches[batchHandle].objectCount + 1 > myEngine.batches[batchHandle].objectCapacity)
+    if (myEngine.batches[batchHandle].entityCount + 1 > myEngine.batches[batchHandle].entityCapacity)
     {
         GLuint transformBuffer;
+        GLuint indirectBuffer;
         glCreateBuffers(1, &transformBuffer);
-        if (!transformBuffer)
+        glCreateBuffers(1, &indirectBuffer);
+        if (!transformBuffer || !indirectBuffer)
         {
-            my_batch_destroy(batchHandle);
             return false;
         }
-        glNamedBufferStorage(myEngine.batches[batchHandle].transformBuffer, (myEngine.batches[batchHandle].objectCapacity + MY_ALLOCATOR_BATCH_OBJECT) * sizeof(MyTransform), NULL, GL_DYNAMIC_STORAGE_BIT);
-        glCopyNamedBufferSubData(myEngine.batches[batchHandle].transformBuffer, transformBuffer, 0, 0, myEngine.batches[batchHandle].objectCapacity * sizeof(MyTransform));
+        glNamedBufferStorage(myEngine.batches[batchHandle].transformBuffer, (myEngine.batches[batchHandle].entityCapacity + MY_ALLOCATOR_BATCH_ENTITY) * sizeof(MyTransform), NULL, GL_DYNAMIC_STORAGE_BIT);
+        glNamedBufferStorage(myEngine.batches[batchHandle].indirectBuffer, (myEngine.batches[batchHandle].entityCapacity + MY_ALLOCATOR_BATCH_ENTITY) * sizeof(MyIndirect), NULL, GL_DYNAMIC_STORAGE_BIT);
+        glCopyNamedBufferSubData(myEngine.batches[batchHandle].transformBuffer, transformBuffer, 0, 0, myEngine.batches[batchHandle].entityCapacity * sizeof(MyTransform));
+        glCopyNamedBufferSubData(myEngine.batches[batchHandle].indirectBuffer, indirectBuffer, 0, 0, myEngine.batches[batchHandle].entityCapacity * sizeof(MyIndirect));
         glDeleteBuffers(1, &myEngine.batches[batchHandle].transformBuffer);
+        glDeleteBuffers(1, &myEngine.batches[batchHandle].indirectBuffer);
         myEngine.batches[batchHandle].transformBuffer = transformBuffer;
+        myEngine.batches[batchHandle].indirectBuffer = indirectBuffer;
     }
-    if (type == MY_BATCH_TYPE_SPRITE)
+    // if (myEngine.batches[batchHandle].vertexCount + myEngine.entities[entityHandle].vertexCount > myEngine.batches[batchHandle].vertexCapacity)
+    // {
+    //     GLuint vertexBuffer;
+    //     glCreateBuffers(1, &vertexBuffer);
+    //     if (!vertexBuffer)
+    //     {
+    //         my_batch_destroy(batchHandle);
+    //         return false;
+    //     }
+    //     glNamedBufferStorage(myEngine.batches[batchHandle].vertexBuffer, (myEngine.batches[batchHandle].vertexCapacity + MY_ALLOCATOR_BATCH_ENTITY) * sizeof(MyEntityVertex) * 4, NULL, GL_DYNAMIC_STORAGE_BIT);
+    //     glCopyNamedBufferSubData(myEngine.batches[batchHandle].vertexBuffer, vertexBuffer, 0, 0, myEngine.batches[batchHandle].vertexCapacity * sizeof(MyEntityVertex) * 4);
+    //     glDeleteBuffers(1, &myEngine.batches[batchHandle].vertexBuffer);
+    //     myEngine.batches[batchHandle].vertexBuffer = vertexBuffer;
+    // }
+    // if (myEngine.batches[batchHandle].indexCount + 6 > myEngine.batches[batchHandle].indexCapacity)
+    // {
+    //     GLuint indexBuffer;
+    //     glCreateBuffers(1, &indexBuffer);
+    //     if (!indexBuffer)
+    //     {
+    //         my_batch_destroy(batchHandle);
+    //         return false;
+    //     }
+    //     glNamedBufferStorage(myEngine.batches[batchHandle].indexBuffer, (myEngine.batches[batchHandle].indexCapacity + MY_ALLOCATOR_BATCH_ENTITY) * sizeof(GLushort) * 6, NULL, GL_DYNAMIC_STORAGE_BIT);
+    //     glCopyNamedBufferSubData(myEngine.batches[batchHandle].indexBuffer, indexBuffer, 0, 0, myEngine.batches[batchHandle].indexCapacity * sizeof(GLushort) * 6);
+    //     glDeleteBuffers(1, &myEngine.batches[batchHandle].indexBuffer);
+    //     myEngine.batches[batchHandle].indexBuffer = indexBuffer;
+    // }
+    glNamedBufferSubData(myEngine.batches[batchHandle].vertexBuffer, myEngine.batches[batchHandle].vertexOffset, myEngine.entities[entityHandle].vertexCount * myEngine.entities[entityHandle].vertexSize, myEngine.entities[entityHandle].vertices);
+    glNamedBufferSubData(myEngine.batches[batchHandle].indexBuffer, myEngine.batches[batchHandle].indexCount * sizeof(GLushort), myEngine.entities[entityHandle].indexCount * sizeof(GLushort), myEngine.entities[entityHandle].indices);
+    glNamedBufferSubData(myEngine.batches[batchHandle].transformBuffer, myEngine.batches[batchHandle].entityCount * sizeof(MyTransform), sizeof(MyTransform), &myEngine.entities[entityHandle].transform);
+    const MyIndirect indirect =
     {
-        if (myEngine.batches[batchHandle].vertexCount + 4 > myEngine.batches[batchHandle].vertexCapacity)
-        {
-            GLuint vertexBuffer;
-            glCreateBuffers(1, &vertexBuffer);
-            if (!vertexBuffer)
-            {
-                my_batch_destroy(batchHandle);
-                return false;
-            }
-            glNamedBufferStorage(myEngine.batches[batchHandle].vertexBuffer, (myEngine.batches[batchHandle].vertexCapacity + MY_ALLOCATOR_BATCH_OBJECT) * sizeof(MySpriteVertex) * 4, NULL, GL_DYNAMIC_STORAGE_BIT);
-            glCopyNamedBufferSubData(myEngine.batches[batchHandle].vertexBuffer, vertexBuffer, 0, 0, myEngine.batches[batchHandle].vertexCapacity * sizeof(MySpriteVertex) * 4);
-            glDeleteBuffers(1, &myEngine.batches[batchHandle].vertexBuffer);
-            myEngine.batches[batchHandle].vertexBuffer = vertexBuffer;
-        }
-        if (myEngine.batches[batchHandle].indexCount + 6 > myEngine.batches[batchHandle].indexCapacity)
-        {
-            GLuint indexBuffer;
-            glCreateBuffers(1, &indexBuffer);
-            if (!indexBuffer)
-            {
-                my_batch_destroy(batchHandle);
-                return false;
-            }
-            glNamedBufferStorage(myEngine.batches[batchHandle].indexBuffer, (myEngine.batches[batchHandle].indexCapacity + MY_ALLOCATOR_BATCH_OBJECT) * sizeof(GLushort) * 6, NULL, GL_DYNAMIC_STORAGE_BIT);
-            glCopyNamedBufferSubData(myEngine.batches[batchHandle].indexBuffer, indexBuffer, 0, 0, myEngine.batches[batchHandle].indexCapacity * sizeof(GLushort) * 6);
-            glDeleteBuffers(1, &myEngine.batches[batchHandle].indexBuffer);
-            myEngine.batches[batchHandle].indexBuffer = indexBuffer;
-        }
-        glNamedBufferSubData(myEngine.batches[batchHandle].vertexBuffer, myEngine.batches[batchHandle].objectCount * sizeof(MySpriteVertex) * 4, sizeof(MySpriteVertex) * 4, myEngine.sprites[objectHandle].vertices);
-        glNamedBufferSubData(myEngine.batches[batchHandle].indexBuffer, myEngine.batches[batchHandle].objectCount * sizeof(GLushort) * 6, sizeof(GLushort) * 6, myEngine.sprites[objectHandle].indices);
-        glNamedBufferSubData(myEngine.batches[batchHandle].transformBuffer, myEngine.batches[batchHandle].objectCount * sizeof(MyTransform), sizeof(MyTransform), &myEngine.sprites[objectHandle].transform);
-        myEngine.sprites[objectHandle].batchHandle = batchHandle;
-        myEngine.sprites[objectHandle].renderOrder = myEngine.batches[batchHandle].objectCount;
-        myEngine.batches[batchHandle].vertexCount += 4;
-        myEngine.batches[batchHandle].indexCount += 6;
-    }
-    myEngine.batches[batchHandle].objectCount++;
+        myEngine.entities[entityHandle].indexCount,
+        1,
+        myEngine.batches[batchHandle].indexCount * sizeof(GLushort),
+        myEngine.batches[batchHandle].vertexOffset,
+        myEngine.batches[batchHandle].entityCount
+    };
+    glNamedBufferSubData(myEngine.batches[batchHandle].indirectBuffer, myEngine.batches[batchHandle].entityCount * sizeof(MyIndirect), sizeof(MyIndirect), &indirect);
+    myEngine.entities[entityHandle].batchHandle = batchHandle;
+    myEngine.entities[entityHandle].entityIndex = myEngine.batches[batchHandle].entityCount;
+    myEngine.entities[entityHandle].vertexOffset = myEngine.batches[batchHandle].vertexOffset;
+    myEngine.entities[entityHandle].indexIndex = myEngine.batches[batchHandle].indexCount;
+    myEngine.batches[batchHandle].entityCount++;
+    myEngine.batches[batchHandle].vertexOffset += myEngine.entities[entityHandle].vertexCount * myEngine.entities[entityHandle].vertexSize;
+    myEngine.batches[batchHandle].indexCount += myEngine.entities[entityHandle].indexCount;
     return true;
 }
 
-static void my_batch_remove(MyBatchType type, MyHandle objectHandle)
+static void my_batch_remove(MyHandle entityHandle)
 {
-    MyHandle batchHandle = MY_INVALID_HANDLE;
-    if (type == MY_BATCH_TYPE_SPRITE)
-    {
-        batchHandle = myEngine.sprites[objectHandle].batchHandle;
+    const MyHandle batchHandle = myEngine.entities[entityHandle].batchHandle;
         // todo: swap deleted sprite with last in buffers
-        myEngine.sprites[objectHandle].batchHandle = MY_INVALID_HANDLE;
-        myEngine.sprites[objectHandle].renderOrder = 0;
-        myEngine.batches[batchHandle].vertexCount -= 4;
-        myEngine.batches[batchHandle].indexCount -= 6;
-    }
-    myEngine.batches[batchHandle].objectCount--;
-    if (!myEngine.batches[batchHandle].objectCount)
+    myEngine.entities[entityHandle].batchHandle = MY_INVALID_HANDLE;
+    myEngine.entities[entityHandle].entityIndex = 0;
+    myEngine.entities[entityHandle].vertexOffset = 0;
+    myEngine.entities[entityHandle].indexCount = 0;
+    myEngine.batches[batchHandle].entityCount--;
+    myEngine.batches[batchHandle].vertexOffset -= myEngine.entities[entityHandle].vertexCount;
+    myEngine.batches[batchHandle].indexCount-= myEngine.entities[entityHandle].indexCount;
+    if (!myEngine.batches[batchHandle].entityCount)
     {
         my_batch_destroy(batchHandle);
     }
