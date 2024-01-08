@@ -221,14 +221,15 @@ MY_API bool my_window_create(int x, int y, int width, int height, const char* ti
 MY_API void my_window_destroy(void);
 MY_API bool my_window_prepare(void);
 MY_API void my_window_render(void);
-MY_API void my_window_position(int x, int y);
-MY_API void my_window_size(int width, int height);
-MY_API void my_window_title(const char* title);
-MY_API void my_window_color(MyColor color);
-MY_API void my_window_viewport(float x, float y, float width, float height);
-MY_API void my_window_vsync(bool vsync);
-MY_API void my_window_depth(bool depth);
-MY_API void my_window_cursor(bool cursor);
+
+MY_API void my_window_set_position(int x, int y);
+MY_API void my_window_set_size(int width, int height);
+MY_API void my_window_set_title(const char* title);
+MY_API void my_window_set_color(MyColor color);
+MY_API void my_window_set_viewport(float x, float y, float width, float height);
+MY_API void my_window_set_vsync(bool vsync);
+MY_API void my_window_set_depth(bool depth);
+MY_API void my_window_set_cursor(bool cursor);
 
 MY_API float my_window_get_cursor(float* x, float* y);
 MY_API float my_window_get_cursor_delta(float* x, float* y);
@@ -240,21 +241,21 @@ MY_API int my_window_get_frame_rate(void);
 // Entity Functions
 ////////////////////////////////////////////////////////////////////////////////
 
+MY_API MyHandle my_entity_create_sprite(float width, float height);
+MY_API MyHandle my_entity_create_mesh(void);
 MY_API void my_entity_destroy(MyHandle entityHandle);
-MY_API void my_entity_render(MyHandle entityHandle, bool render);
-MY_API void my_entity_position(MyHandle entityHandle, MyVector position, bool absolute);
-MY_API void my_entity_scale(MyHandle entityHandle, MyVector scale, bool absolute);
-MY_API void my_entity_rotation(MyHandle entityHandle, MyVector rotation, bool absolute);
+MY_API void my_entity_move(MyHandle entityHandle, MyVector distance);
+MY_API void my_entity_scale(MyHandle entityHandle, MyVector scale);
+MY_API void my_entity_rotate(MyHandle entityHandle, MyVector rotation);
+
+MY_API void my_entity_set_visible(MyHandle entityHandle, bool visible);
+MY_API void my_entity_set_position(MyHandle entityHandle, MyVector position);
+MY_API void my_entity_set_scale(MyHandle entityHandle, MyVector scale);
+MY_API void my_entity_set_rotation(MyHandle entityHandle, MyVector rotation);
 
 MY_API MyVector my_entity_get_position(MyHandle entityHandle);
 MY_API MyVector my_entity_get_scale(MyHandle entityHandle);
 MY_API MyVector my_entity_get_rotation(MyHandle entityHandle);
-
-////////////////////////////////////////////////////////////////////////////////
-// Sprite Functions
-////////////////////////////////////////////////////////////////////////////////
-
-MY_API MyHandle my_sprite_create(int width, int height);
 
 ////////////////////////////////////////////////////////////////////////////////
 // Texture Functions
@@ -262,7 +263,8 @@ MY_API MyHandle my_sprite_create(int width, int height);
 
 MY_API MyHandle my_texture_create(const char* imagePath, int frameCount);
 MY_API void my_texture_destroy(MyHandle textureHandle);
-MY_API void my_texture_frame(MyHandle textureHandle, int frameIndex, int x, int y, int width, int height);
+
+MY_API void my_texture_set_frame(MyHandle textureHandle, int frameIndex, int x, int y, int width, int height);
 
 ////////////////////////////////////////////////////////////////////////////////
 // Shader Functions
@@ -280,8 +282,9 @@ MY_API void my_clock_destroy(MyHandle clockHandle);
 MY_API void my_clock_start(MyHandle clockHandle);
 MY_API void my_clock_stop(MyHandle clockHandle);
 MY_API void my_clock_reset(MyHandle clockHandle);
-MY_API void my_clock_interval(MyHandle clockHandle, float interval);
-MY_API void my_clock_callback(MyHandle clockHandle, MyClockCallback callback);
+
+MY_API void my_clock_set_interval(MyHandle clockHandle, float interval);
+MY_API void my_clock_set_callback(MyHandle clockHandle, MyClockCallback callback);
 
 MY_API float my_clock_get_time(MyHandle clockHandle);
 MY_API float my_clock_get_progress(MyHandle clockHandle);
