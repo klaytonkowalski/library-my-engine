@@ -33,6 +33,7 @@
 int main(int argc, char* argv[])
 {
     my_window_create(0, 0, 800, 800, "Example");
+    my_camera_activate(MY_DEFAULT_CAMERA_ORTHOGRAPHIC);
     my_entity_create_sprite(0.5f, 0.5f);
     my_entity_set_visible(1, true);
     while (my_window_prepare())

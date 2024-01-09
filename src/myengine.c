@@ -47,14 +47,18 @@
 #define MY_ALLOCATOR_ENTITY 1000
 #define MY_ALLOCATOR_TEXTURE 100
 #define MY_ALLOCATOR_SHADER 10
+#define MY_ALLOCATOR_CAMERA 10
 #define MY_ALLOCATOR_CLOCK 10
 #define MY_ALLOCATOR_BATCH 100
 #define MY_ALLOCATOR_BATCH_ENTITY 100
 #define MY_ALLOCATOR_BATCH_VERTEX 10000
 #define MY_ALLOCATOR_BATCH_INDEX 10000
 
+#define MY_CAPACITY_CAMERA sizeof(MyTransform) * 2
+
 #define MY_BUFFER_ENTITY_VERTEX 0
 #define MY_BUFFER_ENTITY_TRANSFORM 1
+#define MY_BUFFER_CAMERA 0
 
 #define MY_UNIFORM_ENTITY_TEXTURE 0
 
@@ -153,6 +157,36 @@ typedef struct MyShader
 }
 MyShader;
 
+typedef enum MyProjection
+{
+    MY_PROJECTION_ORTHOGRAPHIC,
+    MY_PROJECTION_PERSPECTIVE
+}
+MyProjection;
+
+typedef struct MyCamera
+{
+    MyHandle cameraHandle;
+    MyProjection projection;
+    float left;
+    float right;
+    float bottom;
+    float top;
+    float far;
+    float near;
+    float aspectRatio;
+    float fieldOfView;
+    MyVector position;
+    MyVector rotation;
+    MyVector basisX;
+    MyVector basisY;
+    MyVector basisZ;
+    MyTransform viewTransform;
+    MyTransform projectionTransform;
+    bool dirty;
+}
+MyCamera;
+
 typedef struct MyClock
 {
     MyHandle clockHandle;
@@ -192,6 +226,7 @@ typedef struct MyEngine
     MyEntity* entities;
     MyTexture* textures;
     MyShader* shaders;
+    MyCamera* cameras;
     MyClock* clocks;
     MyBatch* batches;
     int windowX;
@@ -213,8 +248,11 @@ typedef struct MyEngine
     int entityCapacity;
     int textureCapacity;
     int shaderCapacity;
+    int cameraCapacity;
     int clockCapacity;
     int batchCapacity;
+    GLuint cameraBuffer;
+    MyHandle cameraHandle;
 }
 MyEngine;
 
@@ -224,6 +262,8 @@ MyEngine;
 
 static void my_window_position_callback(GLFWwindow* window, int x, int y);
 static void my_window_size_callback(GLFWwindow* window, int width, int height);
+
+static void my_camera_update(MyHandle cameraHandle);
 
 static void my_clock_frame_callback(MyHandle clockHandle);
 
@@ -401,6 +441,12 @@ bool my_window_create(int x, int y, int width, int height, const char* title)
         my_window_destroy();
         return false;
     }
+    myEngine.cameras = calloc(MY_ALLOCATOR_CAMERA, sizeof(MyCamera));
+    if (!myEngine.cameras)
+    {
+        my_window_destroy();
+        return false;
+    }
     myEngine.clocks = calloc(MY_ALLOCATOR_CLOCK, sizeof(MyClock));
     if (!myEngine.clocks)
     {
@@ -413,10 +459,19 @@ bool my_window_create(int x, int y, int width, int height, const char* title)
         my_window_destroy();
         return false;
     }
+    glCreateBuffers(1, &myEngine.cameraBuffer);
+    if (!myEngine.cameraBuffer)
+    {
+        my_window_destroy();
+        return false;
+    }
+    glNamedBufferStorage(myEngine.cameraBuffer, MY_CAPACITY_CAMERA, NULL, GL_DYNAMIC_STORAGE_BIT);
+    glBindBufferBase(GL_UNIFORM_BUFFER, MY_BUFFER_CAMERA, myEngine.cameraBuffer);
     myEngine.renderMask |= GL_COLOR_BUFFER_BIT;
     myEngine.entityCapacity = MY_ALLOCATOR_ENTITY;
     myEngine.textureCapacity = MY_ALLOCATOR_TEXTURE;
     myEngine.shaderCapacity = MY_ALLOCATOR_SHADER;
+    myEngine.cameraCapacity = MY_ALLOCATOR_CAMERA;
     myEngine.clockCapacity = MY_ALLOCATOR_CLOCK;
     myEngine.batchCapacity = MY_ALLOCATOR_BATCH;
     stbi_set_flip_vertically_on_load(true);
@@ -431,6 +486,16 @@ bool my_window_create(int x, int y, int width, int height, const char* title)
         return false;
     }
     if (!my_shader_create(MY_PATH_ASSETS "/shaders/vertex/mesh.glsl", MY_PATH_ASSETS "/shaders/fragment/mesh.glsl"))
+    {
+        my_window_destroy();
+        return false;
+    }
+    if (!my_camera_create_orthographic(0.0f, (float) width, 0.0f, (float) height, -1.0f, 1.0f))
+    {
+        my_window_destroy();
+        return false;
+    }
+    if (!my_camera_create_perspective((float) width / height, 45.0f, -1000.0f, -1.0f))
     {
         my_window_destroy();
         return false;
@@ -476,6 +541,13 @@ void my_window_destroy(void)
             my_shader_destroy(i);
         }
     }
+    for (int i = 1; i < myEngine.cameraCapacity; i++)
+    {
+        if (myEngine.cameras[i].cameraHandle)
+        {
+            my_camera_destroy(i);
+        }
+    }
     for (int i = 1; i < myEngine.clockCapacity; i++)
     {
         if (myEngine.clocks[i].clockHandle)
@@ -495,6 +567,10 @@ void my_window_destroy(void)
     {
         free(myEngine.shaders);
     }
+    if (myEngine.cameras)
+    {
+        free(myEngine.cameras);
+    }
     if (myEngine.clocks)
     {
         free(myEngine.clocks);
@@ -502,6 +578,10 @@ void my_window_destroy(void)
     if (myEngine.batches)
     {
         free(myEngine.batches);
+    }
+    if (myEngine.cameraBuffer)
+    {
+        glDeleteBuffers(1, &myEngine.cameraBuffer);
     }
     if (myEngine.window)
     {
@@ -577,6 +657,10 @@ bool my_window_prepare(void)
 
 void my_window_render(void)
 {
+    if (myEngine.cameras[myEngine.cameraHandle].dirty)
+    {
+        my_camera_update(myEngine.cameraHandle);
+    }
     for (int i = 1; i < myEngine.batchCapacity; i++)
     {
         if (myEngine.batches[i].batchHandle)
@@ -1097,6 +1181,203 @@ void my_shader_destroy(MyHandle shaderHandle)
         free(myEngine.shaders[shaderHandle].fragmentText);
     }
     myEngine.shaders[shaderHandle] = (MyShader) { 0 };
+}
+
+////////////////////////////////////////////////////////////////////////////////
+// Camera Functions
+////////////////////////////////////////////////////////////////////////////////
+
+MyHandle my_camera_create_orthographic(float left, float right, float bottom, float top, float far, float near)
+{
+    MyHandle cameraHandle = MY_INVALID_HANDLE;
+    for (int i = 1; i < myEngine.cameraCapacity; i++)
+    {
+        if (!myEngine.cameras[i].cameraHandle)
+        {
+            cameraHandle = i;
+            break;
+        }
+    }
+    if (!cameraHandle)
+    {
+        MyCamera* cameras = realloc(myEngine.cameras, (myEngine.cameraCapacity + MY_ALLOCATOR_CAMERA) * sizeof(MyCamera));
+        if (!cameras)
+        {
+            return MY_INVALID_HANDLE;
+        }
+        cameraHandle = myEngine.cameraCapacity;
+        myEngine.cameras = cameras;
+        myEngine.cameraCapacity += MY_ALLOCATOR_CAMERA;
+    }
+    myEngine.cameras[cameraHandle].cameraHandle = cameraHandle;
+    myEngine.cameras[cameraHandle].projection = MY_PROJECTION_ORTHOGRAPHIC;
+    myEngine.cameras[cameraHandle].left = left;
+    myEngine.cameras[cameraHandle].right = right;
+    myEngine.cameras[cameraHandle].bottom = bottom;
+    myEngine.cameras[cameraHandle].top = top;
+    myEngine.cameras[cameraHandle].far = far;
+    myEngine.cameras[cameraHandle].near = near;
+    myEngine.cameras[cameraHandle].dirty = true;
+    my_vector_basis(&myEngine.cameras[cameraHandle].basisX, &myEngine.cameras[cameraHandle].basisY, &myEngine.cameras[cameraHandle].basisZ, MY_VECTOR_ZERO);
+    return cameraHandle;
+}
+
+MyHandle my_camera_create_perspective(float aspectRatio, float fieldOfView, float far, float near)
+{
+    MyHandle cameraHandle = MY_INVALID_HANDLE;
+    for (int i = 1; i < myEngine.cameraCapacity; i++)
+    {
+        if (!myEngine.cameras[i].cameraHandle)
+        {
+            cameraHandle = i;
+            break;
+        }
+    }
+    if (!cameraHandle)
+    {
+        MyCamera* cameras = realloc(myEngine.cameras, (myEngine.cameraCapacity + MY_ALLOCATOR_CAMERA) * sizeof(MyCamera));
+        if (!cameras)
+        {
+            return MY_INVALID_HANDLE;
+        }
+        cameraHandle = myEngine.cameraCapacity;
+        myEngine.cameras = cameras;
+        myEngine.cameraCapacity += MY_ALLOCATOR_CAMERA;
+    }
+    myEngine.cameras[cameraHandle].cameraHandle = cameraHandle;
+    myEngine.cameras[cameraHandle].projection = MY_PROJECTION_ORTHOGRAPHIC;
+    myEngine.cameras[cameraHandle].far = far;
+    myEngine.cameras[cameraHandle].near = near;
+    myEngine.cameras[cameraHandle].aspectRatio = aspectRatio;
+    myEngine.cameras[cameraHandle].fieldOfView = fieldOfView;
+    myEngine.cameras[cameraHandle].dirty = true;
+    my_vector_basis(&myEngine.cameras[cameraHandle].basisX, &myEngine.cameras[cameraHandle].basisY, &myEngine.cameras[cameraHandle].basisZ, MY_VECTOR_ZERO);
+    return cameraHandle;
+}
+
+void my_camera_destroy(MyHandle cameraHandle)
+{
+    myEngine.cameras[cameraHandle] = (MyCamera) { 0 };
+}
+
+void my_camera_activate(MyHandle cameraHandle)
+{
+    myEngine.cameraHandle = cameraHandle;
+    myEngine.cameras[cameraHandle].dirty = true;
+}
+
+void my_camera_move(MyHandle cameraHandle, MyVector distance, bool absolute)
+{
+    if (absolute)
+    {
+        myEngine.cameras[cameraHandle].position = my_vector_add(myEngine.cameras[cameraHandle].position, distance);
+    }
+    else
+    {
+        if (distance.x)
+        {
+            const MyVector localDistanceX = my_vector_scale(myEngine.cameras[cameraHandle].basisX, (MyVector) { distance.x, distance.x, distance.x });
+            myEngine.cameras[cameraHandle].position = my_vector_add(myEngine.cameras[cameraHandle].position, localDistanceX);
+        }
+        if (distance.y)
+        {
+            const MyVector localDistanceY = my_vector_scale(myEngine.cameras[cameraHandle].basisY, (MyVector) { distance.y, distance.y, distance.y });
+            myEngine.cameras[cameraHandle].position = my_vector_add(myEngine.cameras[cameraHandle].position, localDistanceY);
+        }
+        if (distance.z)
+        {
+            const MyVector localDistanceZ = my_vector_scale(myEngine.cameras[cameraHandle].basisZ, (MyVector) { distance.z, distance.z, distance.z });
+            myEngine.cameras[cameraHandle].position = my_vector_add(myEngine.cameras[cameraHandle].position, localDistanceZ);
+        }
+    }
+    myEngine.cameras[cameraHandle].dirty = true;
+}
+
+void my_camera_rotate(MyHandle cameraHandle, MyVector rotation)
+{
+    rotation = my_vector_add(myEngine.cameras[cameraHandle].rotation, rotation);
+    rotation.x = my_float_clamp(rotation.x, -89.0f, 89.0f);
+    rotation.y = my_float_wrap(rotation.y, 0.0f, 360.0f);
+    rotation.z = my_float_wrap(rotation.z, 0.0f, 360.0f);
+    my_vector_basis(&myEngine.cameras[cameraHandle].basisX, &myEngine.cameras[cameraHandle].basisY, &myEngine.cameras[cameraHandle].basisZ, rotation);
+    myEngine.cameras[cameraHandle].rotation = rotation;
+    myEngine.cameras[cameraHandle].dirty = true;
+}
+
+void my_camera_set_position(MyHandle cameraHandle, MyVector position)
+{
+    myEngine.cameras[cameraHandle].position = position;
+    myEngine.cameras[cameraHandle].dirty = true;
+}
+
+void my_camera_set_rotation(MyHandle cameraHandle, MyVector rotation)
+{
+    rotation.x = my_float_clamp(rotation.x, -89.0f, 89.0f);
+    rotation.y = my_float_wrap(rotation.y, 0.0f, 360.0f);
+    rotation.z = my_float_wrap(rotation.z, 0.0f, 360.0f);
+    my_vector_basis(&myEngine.cameras[cameraHandle].basisX, &myEngine.cameras[cameraHandle].basisY, &myEngine.cameras[cameraHandle].basisZ, rotation);
+    myEngine.cameras[cameraHandle].rotation = rotation;
+    myEngine.cameras[cameraHandle].dirty = true;
+}
+
+MyVector my_camera_get_position(MyHandle cameraHandle)
+{
+    return myEngine.cameras[cameraHandle].position;
+}
+
+MyVector my_camera_get_rotation(MyHandle cameraHandle)
+{
+    return myEngine.cameras[cameraHandle].rotation;
+}
+
+static void my_camera_update(MyHandle cameraHandle)
+{
+    const MyVector translation =
+    {
+        -my_vector_dot(myEngine.cameras[cameraHandle].position, myEngine.cameras[cameraHandle].basisX),
+        -my_vector_dot(myEngine.cameras[cameraHandle].position, myEngine.cameras[cameraHandle].basisY),
+        -my_vector_dot(myEngine.cameras[cameraHandle].position, myEngine.cameras[cameraHandle].basisZ)
+    };
+    myEngine.cameras[cameraHandle].viewTransform = (MyTransform)
+    {
+        myEngine.cameras[cameraHandle].basisX.x, myEngine.cameras[cameraHandle].basisY.x, myEngine.cameras[cameraHandle].basisZ.x, 0.0f,
+        myEngine.cameras[cameraHandle].basisX.y, myEngine.cameras[cameraHandle].basisY.y, myEngine.cameras[cameraHandle].basisZ.y, 0.0f,
+        myEngine.cameras[cameraHandle].basisX.z, myEngine.cameras[cameraHandle].basisY.z, myEngine.cameras[cameraHandle].basisZ.z, 0.0f,
+        translation.x, translation.y, translation.z, 1.0f
+    };
+    if (myEngine.cameras[cameraHandle].projection == MY_PROJECTION_ORTHOGRAPHIC)
+    {
+        const float scaleX = 2.0f / (myEngine.cameras[cameraHandle].right - myEngine.cameras[cameraHandle].left);
+        const float scaleY = 2.0f / (myEngine.cameras[cameraHandle].top - myEngine.cameras[cameraHandle].bottom);
+        const float scaleZ = 2.0f / (myEngine.cameras[cameraHandle].near - myEngine.cameras[cameraHandle].far);
+        myEngine.cameras[cameraHandle].projectionTransform = (MyTransform)
+        {
+            scaleX, 0.0f, 0.0f, 0.0f,
+            0.0f, scaleY, 0.0f, 0.0f,
+            0.0f, 0.0f, scaleZ, 0.0f,
+            0.0f, 0.0f, 0.0f, 1.0f
+        };
+    }
+    else if (myEngine.cameras[cameraHandle].projection == MY_PROJECTION_PERSPECTIVE)
+    {
+        const float fieldOfViewRadians = myEngine.cameras[cameraHandle].fieldOfView * MY_FLOAT_RADIANS;
+        const float scaleX = 1.0f / (myEngine.cameras[cameraHandle].aspectRatio * tanf(fieldOfViewRadians * 0.5f));
+        const float scaleY = 1.0f / tanf(fieldOfViewRadians * 0.5f);
+        const float scaleZ = -myEngine.cameras[cameraHandle].far / (myEngine.cameras[cameraHandle].far - myEngine.cameras[cameraHandle].near);
+        const float translateZ = myEngine.cameras[cameraHandle].far * myEngine.cameras[cameraHandle].near / (myEngine.cameras[cameraHandle].near - myEngine.cameras[cameraHandle].far);
+        myEngine.cameras[cameraHandle].projectionTransform = (MyTransform)
+        {
+            scaleX, 0.0f, 0.0f, 0.0f,
+            0.0f, scaleY, 0.0f, 0.0f,
+            0.0f, 0.0f, scaleZ, 1.0f,
+            0.0f, 0.0f, translateZ, 0.0f
+        };
+    }
+    if (cameraHandle == myEngine.cameraHandle)
+    {
+        glNamedBufferSubData(myEngine.cameraBuffer, 0, MY_CAPACITY_CAMERA, &myEngine.cameras[cameraHandle].viewTransform);
+    }
+    myEngine.cameras[cameraHandle].dirty = false;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -38,6 +38,8 @@
 #define MY_DEFAULT_TEXTURE 1
 #define MY_DEFAULT_SHADER_SPRITE 1
 #define MY_DEFAULT_SHADER_MESH 2
+#define MY_DEFAULT_CAMERA_ORTHOGRAPHIC 1
+#define MY_DEFAULT_CAMERA_PERSPECTIVE 2
 
 #define MY_COLOR_WHITE (MyColor) { 1.0f, 1.0f, 1.0f, 1.0f }
 #define MY_COLOR_BLACK (MyColor) { 0.0f, 0.0f, 0.0f, 1.0f }
@@ -272,6 +274,23 @@ MY_API void my_texture_set_frame(MyHandle textureHandle, int frameIndex, int x, 
 
 MY_API MyHandle my_shader_create(const char* vertexPath, const char* fragmentPath);
 MY_API void my_shader_destroy(MyHandle shaderHandle);
+
+////////////////////////////////////////////////////////////////////////////////
+// Camera Functions
+////////////////////////////////////////////////////////////////////////////////
+
+MY_API MyHandle my_camera_create_orthographic(float left, float right, float bottom, float top, float far, float near);
+MY_API MyHandle my_camera_create_perspective(float aspectRatio, float fieldOfView, float far, float near);
+MY_API void my_camera_destroy(MyHandle cameraHandle);
+MY_API void my_camera_activate(MyHandle cameraHandle);
+MY_API void my_camera_move(MyHandle cameraHandle, MyVector distance, bool absolute);
+MY_API void my_camera_rotate(MyHandle cameraHandle, MyVector rotation);
+
+MY_API void my_camera_set_position(MyHandle cameraHandle, MyVector position);
+MY_API void my_camera_set_rotation(MyHandle cameraHandle, MyVector rotation);
+
+MY_API MyVector my_camera_get_position(MyHandle cameraHandle);
+MY_API MyVector my_camera_get_rotation(MyHandle cameraHandle);
 
 ////////////////////////////////////////////////////////////////////////////////
 // Clock Functions
