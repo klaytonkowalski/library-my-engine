@@ -36,23 +36,24 @@ int main(int argc, char* argv[])
     my_camera_activate(MY_DEFAULT_CAMERA_ORTHOGRAPHIC);
     my_entity_create_sprite(0.5f, 0.5f);
     my_entity_set_visible(1, true);
+    my_entity_set_scale(1, (MyVector) { 200.0f, 200.0f, 1.0f });
     while (my_window_prepare())
     {
         if (my_window_get_key_state(MY_KEY_W) == MY_KEY_STATE_DOWN)
         {
-            my_entity_set_position(1, (MyVector) { 0.0f, 0.02f, 0.0f });
+            my_entity_set_position(1, (MyVector) { 0.0f, 5.0f, 0.0f });
         }
         if (my_window_get_key_state(MY_KEY_A) == MY_KEY_STATE_DOWN)
         {
-            my_entity_set_position(1, (MyVector) { -0.02f, 0.0f, 0.0f });
+            my_entity_set_position(1, (MyVector) { -5.0f, 0.0f, 0.0f });
         }
         if (my_window_get_key_state(MY_KEY_S) == MY_KEY_STATE_DOWN)
         {
-            my_entity_set_position(1, (MyVector) { 0.0f, -0.02f, 0.0f });
+            my_entity_set_position(1, (MyVector) { 0.0f, -5.0f, 0.0f });
         }
         if (my_window_get_key_state(MY_KEY_D) == MY_KEY_STATE_DOWN)
         {
-            my_entity_set_position(1, (MyVector) { 0.02f, 0.0f, 0.0f });
+            my_entity_set_position(1, (MyVector) { 5.0f, 0.0f, 0.0f });
         }
         if (my_window_get_key_state(MY_KEY_Q) == MY_KEY_STATE_DOWN)
         {

@@ -485,11 +485,11 @@ bool my_window_create(int x, int y, int width, int height, const char* title)
         my_window_destroy();
         return false;
     }
-    if (!my_shader_create(MY_PATH_ASSETS "/shaders/vertex/mesh.glsl", MY_PATH_ASSETS "/shaders/fragment/mesh.glsl"))
-    {
-        my_window_destroy();
-        return false;
-    }
+    // if (!my_shader_create(MY_PATH_ASSETS "/shaders/vertex/mesh.glsl", MY_PATH_ASSETS "/shaders/fragment/mesh.glsl"))
+    // {
+    //     my_window_destroy();
+    //     return false;
+    // }
     if (!my_camera_create_orthographic(0.0f, (float) width, 0.0f, (float) height, -1.0f, 1.0f))
     {
         my_window_destroy();
